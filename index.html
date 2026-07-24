@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.9</div>
+        <div class="version-badge">v1.8.0</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -218,6 +218,7 @@
 
         <hr class="divider">
 
+        <!-- テキスト解析・登録セクション -->
         <label for="inputText">テキストを入力・貼り付け</label>
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
         <button id="parse-btn" class="btn-primary" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
@@ -415,18 +416,27 @@
                     currentEvent.blockText += ' ' + processedLine;
 
                     // ==========================================
-                    // 同日の最初に見つかったマッチを優先して保持する (v1.7.9)
+                    // 誤認防止の厳格化 (v1.8.0)
+                    // 文の途中（句読点や助詞「は、」など）から巻き込んで抽出するのを防止し、
+                    // 行頭または独立した単語としての大会名・練習試合・カップ名のみを抽出する
                     // ==========================================
                     if (!currentEvent.customEventTitle) {
-                        const cleanLineForMatch = processedLine.replace(/(?:[※\d:]+)(?=試合)/g, '');
+                        // 「※9:30試合」や文中の「〜は、〇〇カップ」などを弾くため、
+                        // 記号や読点・助詞（は、等）の直後ではない純粋なブロック、または行頭からのマッチに限定する
+                        let cleanLineForMatch = processedLine.replace(/^.*?[、。は]\s*/, '');
+                        cleanLineForMatch = cleanLineForMatch.replace(/(?:[※\d:]+)(?=試合)/g, '');
+                        
                         const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|杯|CUP|フェスタ|カップ))/i);
                         
                         if (matchTournament && !processedLine.includes('【')) {
                             let foundTitle = matchTournament[1].replace(/[「」]/g, '');
-                            if (!foundTitle.includes('ドッチ')) {
-                                currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
-                            } else {
-                                currentEvent.customEventTitle = foundTitle;
+                            // 長すぎる文字列（20文字以上）は文章の巻き込みとみなして除外
+                            if (foundTitle.length < 20) {
+                                if (!foundTitle.includes('ドッチ')) {
+                                    currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
+                                } else {
+                                    currentEvent.customEventTitle = foundTitle;
+                                }
                             }
                         }
                     }
