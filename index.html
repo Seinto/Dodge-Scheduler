@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.2</div>
+        <div class="version-badge">v1.7.3</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -361,7 +361,7 @@
                 const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月(?:予定)?\s*】/);
                 if (sectionMonthMatch) {
                     const sMonth = parseInt(sectionMonthMatch[1].replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)), 10);
-                    if (sMonth >= 1 && sMonth >= 1 && sMonth <= 12) {
+                    if (sMonth >= 1 && sMonth <= 12) {
                         activeMonth = sMonth;
                         if (!explicitYearMatch) {
                             if (activeMonth >= 7 && activeMonth <= 12) {
@@ -416,7 +416,7 @@
 
                     currentEvent.blockText += ' ' + processedLine;
 
-                    // 1. 最優先：大会や試合の名称抽出（〇〇大会、〇〇試合、〇〇杯、〇〇CUP、〇〇フェスタ、〇〇カップ、練習試合など）
+                    // 1. 大会や試合の名称抽出（〇〇杯、〇〇CUP、〇〇フェスタ、〇〇カップ、〇〇大会、練習試合など）
                     if (!currentEvent.customEventTitle) {
                         const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|杯|CUP|フェスタ|カップ))/i);
                         if (matchTournament && !processedLine.includes('【')) {
@@ -482,23 +482,16 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    // 【順序を考慮したタイトル決定ロジック】
+                    // 【修正されたタイトル決定ロジック】
                     let baseTitle = '';
                     if (ev.customEventTitle) {
-                        // 1. テキスト内に大会・試合名（杯、CUP、フェスタ、カップ、大会、試合など）が明記されている場合
+                        // 大会名や明確な試合名（杯、CUP、フェスタ、カップ、大会、練習試合など）がある場合
                         baseTitle = ev.customEventTitle;
                     } else {
-                        // 大会名が明記されていない場合の判断
-                        const isGinanOrKasamatsu = ev.blockText.includes('岐南') || ev.blockText.includes('笠松');
-                        const isPracticeGame = ev.blockText.includes('試合') || ev.blockText.includes('練習試合');
-
-                        if (isGinanOrKasamatsu) {
-                            // 岐南町・笠松町であっても「試合」や「練習試合」の文言があれば試合扱いにする
-                            baseTitle = isPracticeGame ? 'ドッチ試合' : 'ドッチ 練習';
-                        } else {
-                            // 岐南町・笠松町以外で、かつ大会名がない場合は「ドッチ試合」
-                            baseTitle = 'ドッチ試合';
-                        }
+                        // 明確な大会・試合名がない場合は基本「ドッチ 練習」とする
+                        // ただし、テキスト中に明確に「練習試合」または独立した「試合」の記載がある場合は「ドッチ試合」にする
+                        const hasExplicitGameKeyword = ev.blockText.includes('練習試合') || /\b試合\b/.test(ev.blockText);
+                        baseTitle = hasExplicitGameKeyword ? 'ドッチ試合' : 'ドッチ 練習';
                     }
 
                     let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
