@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.3</div>
+        <div class="version-badge">v1.6.4</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -321,7 +321,7 @@
             }
         }
 
-        // 4 & 5. テキスト解析・整形（「加藤さん」完全限定版）
+        // 4 & 5. テキスト解析・整形（時系列による年数推測機能付き）
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -346,6 +346,7 @@
             let rawParsedEvents = [];
             let currentEvent = null;
             let currentYear = new Date().getFullYear();
+            let lastParsedMonth = null;
 
             const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
 
@@ -368,13 +369,22 @@
 
                     if (parsedMonth >= 1 && parsedMonth <= 12 && parsedDay >= 1 && parsedDay <= 31) {
                         if (currentEvent) rawParsedEvents.push(currentEvent);
+
+                        // 年の推測（時系列考慮）
+                        if (dateMatch[1]) {
+                            // 年が直接書記されている場合
+                            currentYear = parseInt(dateMatch[1], 10);
+                        } else if (lastParsedMonth !== null && parsedMonth < lastParsedMonth) {
+                            // 前の予定の月より小さくなった場合（例：12月 → 1月）、年を繰り上げる
+                            currentYear++;
+                        }
+                        lastParsedMonth = parsedMonth;
                         
-                        const year = dateMatch[1] ? dateMatch[1] : currentYear;
                         const month = String(parsedMonth).padStart(2, '0');
                         const day = String(parsedDay).padStart(2, '0');
                         
                         currentEvent = {
-                            date: `${year}-${month}-${day}`,
+                            date: `${currentYear}-${month}-${day}`,
                             baseTitle: 'ドッチ 練習',
                             hasKeyDuty: false,
                             hasAsterisk: false,
