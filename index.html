@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.7</div>
+        <div class="version-badge">v1.6.8</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -465,10 +465,8 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
+                    // タイトルからカッコ内の時間表記を削除し、シンプルにする
                     let finalTitle = ev.hasKeyDuty ? `${ev.baseTitle}・鍵当番` : ev.baseTitle;
-                    if (ev.timeRange) {
-                        finalTitle += ` (${ev.timeRange.start}〜${ev.timeRange.end})`;
-                    }
 
                     activeEvents.push({
                         date: ev.date,
