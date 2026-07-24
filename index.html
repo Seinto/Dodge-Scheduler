@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.5.0</div>
+        <div class="version-badge">v1.5.1</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -221,7 +221,7 @@
         <!-- テキスト解析・登録セクション -->
         <label for="inputText">テキストを入力・貼り付け</label>
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
-        <button id="parse-btn" class="btn-primary" style="background-color: var(--primary-color);" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
+        <button id="parse-btn" class="btn-primary" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
 
         <button id="fetch-btn" class="btn-secondary" onclick="fetchDodgeballEvents()" disabled>カレンダーの全ドッチ予定を取得（全解除で表示）</button>
 
@@ -245,8 +245,8 @@
         let tokenClient;
         let gapiInited = false;
         let gsisInited = false;
-        let activeEvents = []; // プレビュー領域に表示するイベント群
-        let currentMode = '';  // 'propose' (提案) または 'list' (全件表示)
+        let activeEvents = [];
+        let currentMode = '';  // 'propose' または 'list'
         let allSelected = false;
 
         function gapiLoaded() {
@@ -321,7 +321,7 @@
             }
         }
 
-        // 4 & 5. テキスト解析・整形 ＋ 既存予定との重複照合・更新検出
+        // 4 & 5. テキスト解析・整形 ＋ 既存予定との重複照合・更新検出（強化版）
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -336,26 +336,42 @@
 
             document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得・照合中...';
 
-            const lines = text.split('\n');
+            // 全角英数を半角に変換
+            const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            });
+
+            const lines = normalizedText.split('\n');
             let rawParsedEvents = [];
             let currentEvent = null;
+            let currentYear = new Date().getFullYear();
 
-            // --- 4. テキスト解析・整形機能 ---
+            // --- 4. テキスト解析・整形機能（日付パターン強化） ---
             lines.forEach(line => {
                 const trimmed = line.trim();
-                // 日付の検出 (YYYY/MM/DD または MM/DD)
-                const dateMatch = trimmed.match(/(\d{4}\/)?(\d{1,2})\/(\d{1,2})/);
+
+                // 明示的な年指定（例: 2027年）の検知
+                const yearMatch = trimmed.match(/(\d{4})年/);
+                if (yearMatch) {
+                    currentYear = parseInt(yearMatch[1], 10);
+                }
+
+                // 「M月D日」「YYYY/MM/DD」「MM/DD」等の広域日付検知
+                const dateMatch = trimmed.match(/(?:(\d{4})[/年.-])?(\d{1,2})[/月.-](\d{1,2})日?/);
                 
-                if (dateMatch) {
+                // 【７月予定】 などの見出しは除外
+                const isHeader = trimmed.includes('【') || trimmed.includes('予定');
+
+                if (dateMatch && !isHeader) {
                     if (currentEvent) rawParsedEvents.push(currentEvent);
                     
-                    const year = dateMatch[1] ? dateMatch[1].replace('/', '') : new Date().getFullYear();
+                    const year = dateMatch[1] ? dateMatch[1] : currentYear;
                     const month = dateMatch[2].padStart(2, '0');
                     const day = dateMatch[3].padStart(2, '0');
                     
                     currentEvent = {
                         date: `${year}-${month}-${day}`,
-                        baseTitle: 'ドッチ 練習', // タイトルの自動設定（デフォルト）
+                        baseTitle: 'ドッチ 練習',
                         hasKeyDuty: false,
                         hasAsterisk: false,
                         meetingTime: '',
@@ -417,7 +433,6 @@
 
                 // 提案フィルタリング（未登録 OR 「※」が含まれる）
                 if (!hasExisting || ev.hasAsterisk) {
-                    // 詳細メモの組み立て（アイコン付き分類）
                     let memoParts = [];
                     if (ev.meetingTime) memoParts.push(`🕒 ${ev.meetingTime}`);
                     if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
@@ -442,7 +457,7 @@
             renderPreview();
         }
 
-        // ファミリーカレンダーのドッチ予定を全件描写（選択解除状態）
+        // カレンダーのドッチ予定を全件描写（選択解除状態）
         async function fetchDodgeballEvents() {
             if (!gapi.client.getToken()) {
                 alert('先に「Googleで連携」ボタンを押してログインしてください。');
@@ -463,7 +478,6 @@
                 const items = res.result.items || [];
                 currentMode = 'list';
                 
-                // 選択を外した状態（selected = false）で初期化
                 activeEvents = items.map(ev => {
                     const dateStr = ev.start.date || (ev.start.dateTime ? ev.start.dateTime.split('T')[0] : '日付不明');
                     return {
@@ -569,14 +583,12 @@
                     };
 
                     if (ev.type === '更新' && ev.existingEventId) {
-                        // 既存予定の更新 (update)
                         await gapi.client.calendar.events.update({
                             'calendarId': calInfo.id,
                             'eventId': ev.existingEventId,
                             'resource': eventResource
                         });
                     } else {
-                        // 新規追加 (insert)
                         await gapi.client.calendar.events.insert({
                             'calendarId': calInfo.id,
                             'resource': eventResource
@@ -615,7 +627,7 @@
                     });
                 }
                 alert(`${targets.length}件の予定を削除しました！`);
-                fetchDodgeballEvents(); // 再取得して全件表示を更新
+                fetchDodgeballEvents();
             } catch (err) {
                 console.error('削除エラー:', err);
                 alert('予定の削除に失敗しました: ' + err.message);
