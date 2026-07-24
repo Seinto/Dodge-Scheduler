@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.0</div>
+        <div class="version-badge">v1.8.1</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -416,26 +416,28 @@
                     currentEvent.blockText += ' ' + processedLine;
 
                     // ==========================================
-                    // 誤認防止の厳格化 (v1.8.0)
-                    // 文の途中（句読点や助詞「は、」など）から巻き込んで抽出するのを防止し、
-                    // 行頭または独立した単語としての大会名・練習試合・カップ名のみを抽出する
+                    // 誤認防止の完全厳格化 (v1.8.1)
+                    // 「費用」「エアコン」「駐車場」「弁当」など説明文・雑務の行は
+                    // カップや杯という文字が含まれていてもタイトル抽出の対象外にする
                     // ==========================================
                     if (!currentEvent.customEventTitle) {
-                        // 「※9:30試合」や文中の「〜は、〇〇カップ」などを弾くため、
-                        // 記号や読点・助詞（は、等）の直後ではない純粋なブロック、または行頭からのマッチに限定する
-                        let cleanLineForMatch = processedLine.replace(/^.*?[、。は]\s*/, '');
-                        cleanLineForMatch = cleanLineForMatch.replace(/(?:[※\d:]+)(?=試合)/g, '');
-                        
-                        const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|杯|CUP|フェスタ|カップ))/i);
-                        
-                        if (matchTournament && !processedLine.includes('【')) {
-                            let foundTitle = matchTournament[1].replace(/[「」]/g, '');
-                            // 長すぎる文字列（20文字以上）は文章の巻き込みとみなして除外
-                            if (foundTitle.length < 20) {
-                                if (!foundTitle.includes('ドッチ')) {
-                                    currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
-                                } else {
-                                    currentEvent.customEventTitle = foundTitle;
+                        const ignoreWords = ['費用', 'エアコン', '駐車場', '弁当', '審査', '審判', '会場準備', 'タイムスケジュール'];
+                        const isIgnoredLine = ignoreWords.some(word => processedLine.includes(word));
+
+                        if (!isIgnoredLine && !processedLine.includes('【')) {
+                            let cleanLineForMatch = processedLine.replace(/^.*?[、。は]\s*/, '');
+                            cleanLineForMatch = cleanLineForMatch.replace(/(?:[※\d:]+)(?=試合)/g, '');
+                            
+                            const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|杯|CUP|フェスタ|カップ))/i);
+                            
+                            if (matchTournament) {
+                                let foundTitle = matchTournament[1].replace(/[「」]/g, '');
+                                if (foundTitle.length < 20) {
+                                    if (!foundTitle.includes('ドッチ')) {
+                                        currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
+                                    } else {
+                                        currentEvent.customEventTitle = foundTitle;
+                                    }
                                 }
                             }
                         }
