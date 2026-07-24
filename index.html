@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.9</div>
+        <div class="version-badge">v1.7.0</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -334,6 +334,7 @@
 
             document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得・照合中...';
 
+            // 全角数字・英字・記号を正規化
             const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９～〜]/g, function(s) {
                 if (s === '～' || s === '〜') return '~';
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -356,7 +357,8 @@
                     currentYear = parseInt(explicitYearMatch[1], 10);
                 }
 
-                const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月/);
+                // 【〇月予定】や【〇月】などの形式を広く検知して月を区切る
+                const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月(?:予定)?\s*】/);
                 if (sectionMonthMatch) {
                     const sMonth = parseInt(sectionMonthMatch[1].replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)), 10);
                     if (!explicitYearMatch) {
@@ -393,7 +395,7 @@
                         
                         currentEvent = {
                             date: `${currentYear}-${month}-${day}`,
-                            customEventTitle: null, // 大会や試合の名前を格納する用
+                            customEventTitle: null,
                             hasKeyDuty: false,
                             hasAsterisk: false,
                             timeRange: '',
@@ -412,12 +414,11 @@
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
 
-                    // 「〇〇大会」や「〇〇試合」を検知して抽出する
+                    // 大会や試合の名称抽出（〇〇大会、〇〇試合、〇〇杯、〇〇CUP、〇〇フェスタ、〇〇カップに対応）
                     if (!currentEvent.customEventTitle) {
-                        const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|カップ))/);
+                        const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|杯|CUP|フェスタ|カップ))/i);
                         if (matchTournament) {
                             let foundTitle = matchTournament[1].replace(/[「」]/g, '');
-                            // 「ドッチ」が重複しないように整える
                             if (!foundTitle.includes('ドッチ')) {
                                 currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
                             } else {
@@ -479,7 +480,6 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    // タイトル決定ロジック：大会/試合があればそれを使用、なければ「ドッチ 練習」、鍵当番があれば追加
                     let baseTitle = ev.customEventTitle ? ev.customEventTitle : 'ドッチ 練習';
                     let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
 
