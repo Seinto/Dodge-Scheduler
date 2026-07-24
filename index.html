@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.0</div>
+        <div class="version-badge">v1.7.2</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -334,7 +334,7 @@
 
             document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得・照合中...';
 
-            // 全角数字・英字・記号を正規化
+            // 全角数字・英字・記号の正規化
             const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９～〜]/g, function(s) {
                 if (s === '～' || s === '〜') return '~';
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -343,7 +343,7 @@
             const lines = normalizedText.split('\n');
             
             let currentYear = 2026;
-            let lastParsedMonth = null;
+            let activeMonth = null;
             let rawParsedEvents = [];
             let currentEvent = null;
 
@@ -357,18 +357,20 @@
                     currentYear = parseInt(explicitYearMatch[1], 10);
                 }
 
-                // 【〇月予定】や【〇月】などの形式を広く検知して月を区切る
+                // 【〇月予定】などのセクション見出しを検知して月を確定
                 const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月(?:予定)?\s*】/);
                 if (sectionMonthMatch) {
                     const sMonth = parseInt(sectionMonthMatch[1].replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)), 10);
-                    if (!explicitYearMatch) {
-                        if (sMonth >= 7 && sMonth <= 12) {
-                            currentYear = 2026;
-                        } else if (sMonth >= 1 && sMonth <= 6) {
-                            currentYear = 2027;
+                    if (sMonth >= 1 && sMonth >= 1 && sMonth <= 12) {
+                        activeMonth = sMonth;
+                        if (!explicitYearMatch) {
+                            if (activeMonth >= 7 && activeMonth <= 12) {
+                                currentYear = 2026;
+                            } else if (activeMonth >= 1 && activeMonth <= 6) {
+                                currentYear = 2027;
+                            }
                         }
                     }
-                    lastParsedMonth = null;
                 }
 
                 const isHeader = trimmed.includes('【') && trimmed.includes('予定');
@@ -384,18 +386,16 @@
                         if (dateMatch[1]) {
                             currentYear = parseInt(dateMatch[1], 10);
                         } else {
-                            if (lastParsedMonth !== null && parsedMonth < lastParsedMonth) {
-                                currentYear++;
-                            }
+                            activeMonth = parsedMonth;
                         }
-                        lastParsedMonth = parsedMonth;
 
-                        const month = String(parsedMonth).padStart(2, '0');
-                        const day = String(parsedDay).padStart(2, '0');
+                        const monthStr = String(parsedMonth).padStart(2, '0');
+                        const dayStr = String(parsedDay).padStart(2, '0');
                         
                         currentEvent = {
-                            date: `${currentYear}-${month}-${day}`,
+                            date: `${currentYear}-${monthStr}-${dayStr}`,
                             customEventTitle: null,
+                            blockText: '',
                             hasKeyDuty: false,
                             hasAsterisk: false,
                             timeRange: '',
@@ -414,10 +414,12 @@
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
 
-                    // 大会や試合の名称抽出（〇〇大会、〇〇試合、〇〇杯、〇〇CUP、〇〇フェスタ、〇〇カップに対応）
+                    currentEvent.blockText += ' ' + processedLine;
+
+                    // 1. 最優先：大会や試合の名称抽出（〇〇大会、〇〇試合、〇〇杯、〇〇CUP、〇〇フェスタ、〇〇カップ、練習試合など）
                     if (!currentEvent.customEventTitle) {
                         const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|杯|CUP|フェスタ|カップ))/i);
-                        if (matchTournament) {
+                        if (matchTournament && !processedLine.includes('【')) {
                             let foundTitle = matchTournament[1].replace(/[「」]/g, '');
                             if (!foundTitle.includes('ドッチ')) {
                                 currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
@@ -480,7 +482,25 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    let baseTitle = ev.customEventTitle ? ev.customEventTitle : 'ドッチ 練習';
+                    // 【順序を考慮したタイトル決定ロジック】
+                    let baseTitle = '';
+                    if (ev.customEventTitle) {
+                        // 1. テキスト内に大会・試合名（杯、CUP、フェスタ、カップ、大会、試合など）が明記されている場合
+                        baseTitle = ev.customEventTitle;
+                    } else {
+                        // 大会名が明記されていない場合の判断
+                        const isGinanOrKasamatsu = ev.blockText.includes('岐南') || ev.blockText.includes('笠松');
+                        const isPracticeGame = ev.blockText.includes('試合') || ev.blockText.includes('練習試合');
+
+                        if (isGinanOrKasamatsu) {
+                            // 岐南町・笠松町であっても「試合」や「練習試合」の文言があれば試合扱いにする
+                            baseTitle = isPracticeGame ? 'ドッチ試合' : 'ドッチ 練習';
+                        } else {
+                            // 岐南町・笠松町以外で、かつ大会名がない場合は「ドッチ試合」
+                            baseTitle = 'ドッチ試合';
+                        }
+                    }
+
                     let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
 
                     activeEvents.push({
