@@ -69,6 +69,7 @@
             padding: 10px 14px;
             border-radius: 8px;
             margin-bottom: 16px;
+            white-space: pre-line;
         }
 
         label {
@@ -203,8 +204,7 @@
 <body>
 
     <div class="container">
-        <!-- バージョン表記 -->
-        <div class="version-badge">v1.3.0</div>
+        <div class="version-badge">v1.3.1</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -272,7 +272,10 @@
         function handleAuthClick() {
             tokenClient.callback = async (resp) => {
                 if (resp.error !== undefined) throw (resp);
-                document.getElementById('status').innerText = '認証成功！カレンダー連携が可能です。';
+                
+                // 認証成功時にターゲットカレンダー名を表示
+                const targetCal = await getFamilyCalendarInfo();
+                document.getElementById('status').innerText = `認証成功！\n使用カレンダー: 「${targetCal.summary}」`;
                 document.getElementById('auth-btn').innerText = '認証済み';
                 document.getElementById('auth-btn').style.backgroundColor = '#5f6368';
             };
@@ -284,20 +287,30 @@
             }
         }
 
-        // ファミリーカレンダーIDの取得
-        async function getFamilyCalendarId() {
+        // ファミリーカレンダーの情報を詳しく特定する関数
+        async function getFamilyCalendarInfo() {
             try {
                 const response = await gapi.client.calendar.calendarList.list();
                 const calendars = response.result.items;
-                const familyCal = calendars.find(c => c.summary === 'ファミリー' || c.summary.toLowerCase() === 'family');
-                return familyCal ? familyCal.id : 'primary';
+                
+                // 「ファミリー」「Family」「家族」などの名前を幅広く検索
+                const familyCal = calendars.find(c => {
+                    const sum = (c.summary || '').toLowerCase();
+                    return sum.includes('ファミリー') || sum.includes('family') || sum.includes('家族');
+                });
+
+                if (familyCal) {
+                    return { id: familyCal.id, summary: familyCal.summary };
+                } else {
+                    return { id: 'primary', summary: 'メインカレンダー (ファミリー未検出)' };
+                }
             } catch (err) {
                 console.error('カレンダー検索失敗:', err);
-                return 'primary';
+                return { id: 'primary', summary: 'メインカレンダー (エラー時フォールバック)' };
             }
         }
 
-        // テキスト解析 ＆ Googleカレンダーとの照合ロジック
+        // テキスト解析 ＆ 既存カレンダーと高精度照合
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -310,7 +323,7 @@
                 return;
             }
 
-            document.getElementById('status').innerText = 'カレンダーの既存予定と照合中...';
+            document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得中...';
 
             const lines = text.split('\n');
             let rawParsedEvents = [];
@@ -332,7 +345,7 @@
                         date: `${year}-${month}-${day}`,
                         baseTitle: 'ドッチ 練習',
                         hasKeyDuty: false,
-                        hasAsterisk: false, // ※の有無
+                        hasAsterisk: false,
                         meetingTime: '',
                         members: [],
                         keyDutyText: '',
@@ -361,32 +374,40 @@
             });
             if (currentEvent) rawParsedEvents.push(currentEvent);
 
-            // 2. Googleカレンダーと照合し、新規/更新の対象のみ抽出
-            const calendarId = await getFamilyCalendarId();
+            // 2. 既存カレンダーの予定を取得して厳密照合
+            const calInfo = await getFamilyCalendarInfo();
             proposedEvents = [];
 
             for (const ev of rawParsedEvents) {
-                // 対象日のドッチ予定を検索
+                // 検索（qを指定せず、対象日の全予定を取得して判定）
                 const res = await gapi.client.calendar.events.list({
-                    'calendarId': calendarId,
+                    'calendarId': calInfo.id,
                     'timeMin': `${ev.date}T00:00:00+09:00`,
                     'timeMax': `${ev.date}T23:59:59+09:00`,
-                    'q': 'ドッチ'
+                    'singleEvents': true
                 });
 
-                const existingEvents = res.result.items;
-                const hasExisting = existingEvents && existingEvents.length > 0;
+                const existingEvents = res.result.items || [];
+                
+                // ドッチに関連しそうな既存予定を探す
+                const matchedEvent = existingEvents.find(e => {
+                    const title = e.summary || '';
+                    const desc = e.description || '';
+                    return title.includes('ドッチ') || title.includes('練習') || desc.includes('ドッチ');
+                });
 
-                // 提案条件: カレンダーに未登録 OR テキストに「※」が含まれている場合
+                const hasExisting = Boolean(matchedEvent);
+
+                // 条件: 未登録 OR テキストに「※」が含まれる場合のみ提案
                 if (!hasExisting || ev.hasAsterisk) {
                     ev.selected = true;
                     ev.type = hasExisting ? '更新' : '新規';
-                    ev.existingEventId = hasExisting ? existingEvents[0].id : null;
+                    ev.existingEventId = hasExisting ? matchedEvent.id : null;
                     proposedEvents.push(ev);
                 }
             }
 
-            document.getElementById('status').innerText = '照合が完了しました。';
+            document.getElementById('status').innerText = `照合完了（読み込み先: ${calInfo.summary}）`;
             renderPreview();
         }
 
@@ -448,7 +469,7 @@
             renderPreview();
         }
 
-        // Googleカレンダーへ追加/上書き適用
+        // カレンダー適用処理
         async function syncToGoogleCalendar() {
             const targets = proposedEvents.filter(ev => ev.selected);
             if (targets.length === 0) {
@@ -457,7 +478,7 @@
             }
 
             document.getElementById('status').innerText = 'ファミリーカレンダーに適用中...';
-            const calendarId = await getFamilyCalendarId();
+            const calInfo = await getFamilyCalendarInfo();
 
             try {
                 for (const ev of targets) {
@@ -469,16 +490,14 @@
                     };
 
                     if (ev.type === '更新' && ev.existingEventId) {
-                        // 既存予定の上書き更新
                         await gapi.client.calendar.events.update({
-                            'calendarId': calendarId,
+                            'calendarId': calInfo.id,
                             'eventId': ev.existingEventId,
                             'resource': eventResource
                         });
                     } else {
-                        // 新規作成
                         await gapi.client.calendar.events.insert({
-                            'calendarId': calendarId,
+                            'calendarId': calInfo.id,
                             'resource': eventResource
                         });
                     }
