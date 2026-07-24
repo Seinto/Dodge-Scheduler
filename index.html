@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.5</div>
+        <div class="version-badge">v1.6.6</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -321,7 +321,7 @@
             }
         }
 
-        // 4 & 5. テキスト解析・整形（高精度時系列・年またぎ自動補正版）
+        // 4 & 5. テキスト解析・整形（高精度マルチ年・見出し連動補正版 v1.6.6）
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -344,58 +344,58 @@
 
             const lines = normalizedText.split('\n');
             
-            // --- ステップ1: テキスト内から出現順にすべての有効な日付候補を安全に抽出 ---
-            const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
-            let baseYear = new Date().getFullYear();
-            let firstMonth = null;
-            let currentYear = baseYear;
-            let lastSeenMonth = null;
-
+            let currentYear = 2026; // 基準年（必要に応じて自動または初期値）
+            let lastParsedMonth = null;
             let rawParsedEvents = [];
             let currentEvent = null;
+
+            const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
 
-                const yearMatch = trimmed.match(/(\d{4})年/);
-                if (yearMatch && !trimmed.includes('月')) {
-                    baseYear = parseInt(yearMatch[1], 10);
-                    currentYear = baseYear;
+                // 1. 行内に「〇〇年」が明記されている場合はその年に即座に合わせる
+                const explicitYearMatch = trimmed.match(/(\d{4})年/);
+                if (explicitYearMatch) {
+                    currentYear = parseInt(explicitYearMatch[1], 10);
                 }
 
-                const isHeader = trimmed.includes('【') || trimmed.includes('予定');
+                // 2. 「【7月予定】」「【８月予定】」などのセクション見出しを検知して自動で年を割り当てる（7月〜12月は2026年、翌年1月〜3月は2027年など）
+                const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月/);
+                if (sectionMonthMatch) {
+                    const sMonth = parseInt(sectionMonthMatch[1].replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)), 10);
+                    if (!explicitYearMatch) {
+                        // 7, 8, 9, 10, 11, 12月なら2026年、1, 2, 3月なら2027年と判定するルールを適用
+                        if (sMonth >= 7 && sMonth <= 12) {
+                            currentYear = 2026;
+                        } else if (sMonth >= 1 && sMonth <= 6) {
+                            currentYear = 2027;
+                        }
+                    }
+                    lastParsedMonth = null; // セクションが変わったら月リセット
+                }
+
+                const isHeader = trimmed.includes('【') && trimmed.includes('予定');
                 const isGradeOrTime = trimmed.includes('年生') || trimmed.includes(':') || trimmed.includes('：');
 
                 const dateMatch = trimmed.match(strictDateRegex);
 
-                if (dateMatch && !isHeader && !isGradeOrTime) {
+                if (dateMatch && !isHeader) {
                     const parsedMonth = parseInt(dateMatch[2], 10);
                     const parsedDay = parseInt(dateMatch[3], 10);
 
                     if (parsedMonth >= 1 && parsedMonth <= 12 && parsedDay >= 1 && parsedDay <= 31) {
                         if (currentEvent) rawParsedEvents.push(currentEvent);
 
-                        // 年の自動決定ロジック（時系列・年またぎ完全対応）
                         if (dateMatch[1]) {
                             currentYear = parseInt(dateMatch[1], 10);
                         } else {
-                            if (firstMonth === null) {
-                                firstMonth = parsedMonth; // 最初の予定の月を基準に保持
-                            } else {
-                                // 最初の月よりも小さな月が出現した場合、年をまたいだと判定して翌年に繰り上げる
-                                if (parsedMonth < firstMonth && lastSeenMonth !== null && parsedMonth < lastSeenMonth + 6) {
-                                    // 念のため直前の月よりも極端に小さく、かつ最初の月より小さい場合に年を進める
-                                    // ※ただし、スケジュールが順当に進む前提で、前月より月が小さくなったら年またぎとみなす
-                                }
-                            }
-                            
-                            // 堅牢な時系列比較：直前の月より小さくなったら（例: 12月→1月、または7月→3月の逆行など）年を進める
-                            if (lastSeenMonth !== null && parsedMonth < lastSeenMonth) {
-                                // ただし、夏（7月）から春（3月）に一気に戻るような場合は年またぎと確定
+                            // 前の月より小さくなった場合（例: 12月 → 1月、または7月 → 2月など）、年またぎとして翌年にする
+                            if (lastParsedMonth !== null && parsedMonth < lastParsedMonth) {
                                 currentYear++;
                             }
                         }
-                        lastSeenMonth = parsedMonth;
+                        lastParsedMonth = parsedMonth;
 
                         const month = String(parsedMonth).padStart(2, '0');
                         const day = String(parsedDay).padStart(2, '0');
