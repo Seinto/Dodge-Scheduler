@@ -6,15 +6,169 @@
     <title>Dodgeball Schedule Manager</title>
     <link rel="manifest" href="manifest.json">
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background: #f9f9f9; }
-        h1 { font-size: 1.2rem; color: #333; }
-        textarea { width: 100%; height: 150px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; padding: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background-color: #4285F4; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        button:disabled { background-color: #ccc; }
-        .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .card-title { font-weight: bold; color: #1a73e8; }
-        .card-memo { font-size: 0.85rem; color: #555; white-space: pre-wrap; margin-top: 5px; background: #f1f3f4; padding: 8px; border-radius: 4px; }
-        #status { font-size: 0.9rem; color: #666; margin-bottom: 10px; }
+        :root {
+            --primary-color: #1a73e8;
+            --primary-hover: #1557b0;
+            --success-color: #34a853;
+            --success-hover: #2d8e47;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-color: #202124;
+            --sub-text: #5f6368;
+            --border-color: #dadce0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 24px 16px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 540px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .version-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--sub-text);
+            background: #e8eaed;
+            padding: 3px 8px;
+            border-radius: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin: 0 0 16px 0;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-box {
+            font-size: 0.85rem;
+            color: var(--sub-text);
+            background: #f1f3f4;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-color);
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 140px;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            resize: vertical;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+        }
+
+        button {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-primary:disabled { background-color: #dadce0; cursor: not-allowed; }
+
+        .btn-secondary {
+            background-color: #f1f3f4;
+            color: var(--text-color);
+        }
+        .btn-secondary:hover { background-color: #e8eaed; }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+        .btn-success:hover { background-color: var(--success-hover); }
+
+        .divider {
+            border: none;
+            border-top: 1px solid var(--border-color);
+            margin: 20px 0;
+        }
+
+        .preview-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .event-card {
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .event-header {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .event-memo {
+            font-size: 0.85rem;
+            color: var(--sub-text);
+            white-space: pre-wrap;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            line-height: 1.4;
+        }
     </style>
     <!-- Google Identity Services & GAPI Client Libraries -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -22,22 +176,29 @@
 </head>
 <body>
 
-    <h1>🏈 ドッチ予定管理 (Dodgeball Planner)</h1>
-    <div id="status">Google認証の初期化中...</div>
-    <button id="auth-btn" onclick="handleAuthClick()" disabled>Googleでログイン・連携</button>
+    <div class="container">
+        <!-- バージョン情報 -->
+        <div class="version-badge">v1.1.1</div>
 
-    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
+        <h1>🏈 ドッチ予定管理</h1>
+        <div id="status" class="status-box">Google認証を初期化中...</div>
+        
+        <button id="auth-btn" class="btn-primary" onclick="handleAuthClick()" disabled>Googleで連携・ログイン</button>
 
-    <label for="inputText"><b>テキストを入力（貼り付け）:</b></label>
-    <textarea id="inputText" placeholder="※変更点やテキスト資料をここに貼り付け..."></textarea>
-    <button onclick="parseAndPreview()">解析してプレビューを表示</button>
+        <hr class="divider">
 
-    <h3>登録プレビュー</h3>
-    <div id="previewArea"></div>
-    <button id="sync-btn" onclick="syncToGoogleCalendar()" style="display:none; background-color: #34A853;">Googleカレンダー（ファミリー）に一括追加</button>
+        <label for="inputText">テキストを入力・貼り付け</label>
+        <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
+        <button class="btn-secondary" onclick="parseAndPreview()">解析してプレビュー表示</button>
+
+        <div id="previewSection" style="margin-top: 20px;">
+            <div class="preview-title">登録プレビュー</div>
+            <div id="previewArea"></div>
+            <button id="sync-btn" class="btn-success" onclick="syncToGoogleCalendar()" style="display:none;">ファミリーカレンダーに一括追加</button>
+        </div>
+    </div>
 
     <script>
-        // 【要設定】ご自身のOAuth 2.0 クライアントIDを入力してください
         const CLIENT_ID = '771522706078-js00qiifo90o0l12i9b0i9uqghvanfea.apps.googleusercontent.com';
         const SCOPES = 'https://www.googleapis.com/auth/calendar';
 
@@ -60,7 +221,7 @@
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: '', // 後で動的に設定
+                callback: '',
             });
             gsisInited = true;
             maybeEnableButtons();
@@ -69,7 +230,7 @@
         function maybeEnableButtons() {
             if (gapiInited && gsisInited) {
                 document.getElementById('auth-btn').disabled = false;
-                document.getElementById('status').innerText = '準備完了。「Googleでログイン」を押してください。';
+                document.getElementById('status').innerText = '準備完了。「Googleで連携」を押してください。';
             }
         }
 
@@ -83,9 +244,9 @@
                 if (resp.error !== undefined) {
                     throw (resp);
                 }
-                document.getElementById('status').innerText = '認証成功！カレンダー連携の準備ができました。';
+                document.getElementById('status').innerText = '認証成功！カレンダー連携が可能です。';
                 document.getElementById('auth-btn').innerText = '認証済み';
-                document.getElementById('auth-btn').style.backgroundColor = '#888';
+                document.getElementById('auth-btn').style.backgroundColor = '#5f6368';
             };
 
             if (gapi.client.getToken() === null) {
@@ -107,11 +268,10 @@
             const lines = text.split('\n');
             let currentEvent = null;
 
-            // テキストの簡易構文解析（ルールに合わせて自動置換）
             lines.forEach(line => {
                 line = line.trim();
                 
-                // 日付の検出例: "2026/08/01" や "8/1" など
+                // 日付検出 (例: 2026/08/01, 8/1)
                 const dateMatch = line.match(/(\d{4}\/)?(\d{1,2})\/(\d{1,2})/);
                 if (dateMatch) {
                     if (currentEvent) parsedEvents.push(currentEvent);
@@ -122,29 +282,30 @@
                     
                     currentEvent = {
                         date: `${year}-${month}-${day}`,
-                        title: 'ドッチ練習', // デフォルトタイトル
+                        baseTitle: 'ドッチ 練習', // 基本タイトル
+                        hasKeyDuty: false,
                         meetingTime: '',
                         members: [],
+                        keyDutyText: '',
                         rawNotes: []
                     };
                 }
 
                 if (currentEvent) {
-                    // ルールに基づく表記の置換
                     let processedLine = line
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
 
-                    // タイトル関連の判定（例: 加藤さん → 鍵当番）
-                    if (processedLine.includes('加藤')) {
-                        currentEvent.title = '【鍵当番】ドッチ';
-                    }
-
-                    // 集合時間の抽出
-                    if (processedLine.includes('集合時間') || processedLine.includes('集合')) {
+                    // 1. 鍵当番の検出（タイトル調整＋メモ末尾保存）
+                    if (processedLine.includes('加藤') || processedLine.includes('鍵当番') || processedLine.includes('鍵')) {
+                        currentEvent.hasKeyDuty = true;
+                        currentEvent.keyDutyText = processedLine;
+                    } 
+                    // 2. 集合時間の抽出
+                    else if (processedLine.includes('集合時間') || processedLine.includes('集合')) {
                         currentEvent.meetingTime = processedLine;
                     } 
-                    // 選手権メンバーの抽出
+                    // 3. 選手権メンバーの抽出
                     else if (processedLine.includes('選手権メンバー') || processedLine.includes('メンバー')) {
                         currentEvent.members.push(processedLine);
                     } 
@@ -165,25 +326,33 @@
             area.innerHTML = '';
 
             if (parsedEvents.length === 0) {
-                area.innerHTML = '<p>有効な予定が抽出できませんでした。</p>';
+                area.innerHTML = '<p style="color: var(--sub-text); font-size: 0.85rem;">日付を含む予定が見つかりませんでした。</p>';
                 document.getElementById('sync-btn').style.display = 'none';
                 return;
             }
 
-            parsedEvents.forEach((ev, idx) => {
-                // メモ欄（description）の整形
-                let memoText = [];
-                if (ev.meetingTime) memoText.push(`🕒 ${ev.meetingTime}`);
-                if (ev.members.length > 0) memoText.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
-                if (ev.rawNotes.length > 0) memoText.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
+            parsedEvents.forEach((ev) => {
+                // 鍵当番フラグがある場合、タイトルを「ドッチ 練習・鍵当番」に変更
+                ev.title = ev.hasKeyDuty ? `${ev.baseTitle}・鍵当番` : ev.baseTitle;
+
+                let memoParts = [];
+                if (ev.meetingTime) memoParts.push(`🕒 ${ev.meetingTime}`);
+                if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
+                if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                 
-                ev.finalDescription = memoText.join('\n\n');
+                // 鍵当番テキストがある場合はメモ末尾にも追記
+                if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
+
+                ev.finalDescription = memoParts.join('\n\n');
 
                 const card = document.createElement('div');
-                card.className = 'card';
+                card.className = 'event-card';
                 card.innerHTML = `
-                    <div class="card-title">[${ev.date}] ${ev.title}</div>
-                    <div class="card-memo">${ev.finalDescription || 'メモなし'}</div>
+                    <div class="event-header">
+                        <span>${ev.title}</span>
+                        <span>${ev.date}</span>
+                    </div>
+                    <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
                 `;
                 area.appendChild(card);
             });
@@ -191,51 +360,43 @@
             document.getElementById('sync-btn').style.display = 'block';
         }
 
-        // ファミリーカレンダーのIDを取得する関数
+        // ファミリーカレンダーIDの検索
         async function getFamilyCalendarId() {
             try {
                 const response = await gapi.client.calendar.calendarList.list();
                 const calendars = response.result.items;
-                
-                // 名前が「ファミリー」または「Family」のカレンダーを探す
                 const familyCal = calendars.find(c => c.summary === 'ファミリー' || c.summary.toLowerCase() === 'family');
                 
                 if (familyCal) {
-                    console.log('ファミリーカレンダーを発見:', familyCal.id);
                     return familyCal.id;
                 } else {
-                    console.warn('ファミリーカレンダーが見つからないため、メインカレンダーを使用します。');
-                    return 'primary'; // 見つからなければプライマリ
+                    return 'primary';
                 }
             } catch (err) {
-                console.error('カレンダー一覧の取得に失敗:', err);
+                console.error('カレンダー検索失敗:', err);
                 return 'primary';
             }
         }
 
-        // Googleカレンダーへ一括同期
+        // Googleカレンダーへ追加
         async function syncToGoogleCalendar() {
             if (!gapi.client.getToken()) {
-                alert('先に「Googleでログイン・連携」ボタンを押して認証してください。');
+                alert('先に「Googleで連携」ボタンを押してログインしてください。');
                 return;
             }
 
-            document.getElementById('status').innerText = 'ファミリーカレンダーを確認中...';
+            document.getElementById('status').innerText = 'ファミリーカレンダーを検索中...';
             const calendarId = await getFamilyCalendarId();
 
-            document.getElementById('status').innerText = 'カレンダーへ登録中...';
+            document.getElementById('status').innerText = '予定を追加中...';
 
             try {
                 for (const ev of parsedEvents) {
                     const eventResource = {
                         'summary': ev.title,
                         'description': ev.finalDescription,
-                        'start': {
-                            'date': ev.date // 終日予定として登録
-                        },
-                        'end': {
-                            'date': ev.date
-                        }
+                        'start': { 'date': ev.date },
+                        'end': { 'date': ev.date }
                     };
 
                     await gapi.client.calendar.events.insert({
@@ -244,10 +405,10 @@
                     });
                 }
                 alert('すべての予定をファミリーカレンダーに追加しました！');
-                document.getElementById('status').innerText = '登録が正常に完了しました。';
+                document.getElementById('status').innerText = '追加が完了しました。';
             } catch (err) {
                 console.error('登録エラー:', err);
-                alert('予定の登録中にエラーが発生しました。詳細: ' + err.message);
+                alert('予定の追加に失敗しました: ' + err.message);
             }
         }
     </script>
