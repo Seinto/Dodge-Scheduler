@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.4</div>
+        <div class="version-badge">v1.7.6</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -357,7 +357,6 @@
                     currentYear = parseInt(explicitYearMatch[1], 10);
                 }
 
-                // 【〇月予定】などのセクション見出しを検知して月を確定
                 const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月(?:予定)?\s*】/);
                 if (sectionMonthMatch) {
                     const sMonth = parseInt(sectionMonthMatch[1].replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)), 10);
@@ -483,21 +482,30 @@
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
                     // ==========================================
-                    // ユーザー指定の順序に基づくタイトル判定ロジック
+                    // ユーザー指定の順序に基づくタイトル判定ロジック (v1.7.6)
                     // ==========================================
                     let baseTitle = '';
                     
                     const hasTournamentOrPracticeGame = Boolean(ev.customEventTitle) || ev.blockText.includes('練習試合');
-                    const isGinanOrKasamatsuSchool = ev.blockText.includes('岐南') || ev.blockText.includes('笠松');
+                    
+                    // ②指定された5つの学校・体育館のいずれかに一致するか判定
+                    const specifiedSchools = [
+                        '岐南町立北小学校体育館', '北小学校体育館', '北小体育館',
+                        '下羽栗小学校体育館', '下羽栗小体育館',
+                        '岐南町立西小学校体育館', '西小学校体育館', '西小体育館',
+                        '岐南町立東小学校体育館', '東小学校体育館', '東小体育館',
+                        '笠松小学校体育館', '笠松小体育館'
+                    ];
+                    const isSpecifiedSchool = specifiedSchools.some(school => ev.blockText.includes(school));
 
                     if (hasTournamentOrPracticeGame) {
-                        // ① 大会名称（杯、CUP、フェスタ、カップ、大会、試合）若しくは練習試合がある場合
+                        // ① 大会名称若しくは練習試合がある場合
                         baseTitle = ev.customEventTitle || 'ドッチ 練習試合';
-                    } else if (!isGinanOrKasamatsuSchool) {
-                        // ② 場所が岐南町・笠松町の小学校ではない場合
+                    } else if (!isSpecifiedSchool) {
+                        // ② 指定された学校・体育館ではない場合
                         baseTitle = 'ドッチ試合';
                     } else {
-                        // ③ ①②のいずれでも無い場合（岐南・笠松の小学校での通常の活動等）
+                        // ③ ①②のいずれでも無い場合
                         baseTitle = 'ドッチ 練習';
                     }
 
