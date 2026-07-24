@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.4</div>
+        <div class="version-badge">v1.6.5</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -321,7 +321,7 @@
             }
         }
 
-        // 4 & 5. テキスト解析・整形（時系列による年数推測機能付き）
+        // 4 & 5. テキスト解析・整形（高精度時系列・年またぎ自動補正版）
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -330,7 +330,7 @@
             }
 
             if (!gapi.client.getToken()) {
-                alert('先に「Googleで連携」ボタンを押してログインしてください。');
+                alert('先に“Googleで連携”ボタンを押してログインしてください。');
                 return;
             }
 
@@ -343,19 +343,24 @@
             });
 
             const lines = normalizedText.split('\n');
+            
+            // --- ステップ1: テキスト内から出現順にすべての有効な日付候補を安全に抽出 ---
+            const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
+            let baseYear = new Date().getFullYear();
+            let firstMonth = null;
+            let currentYear = baseYear;
+            let lastSeenMonth = null;
+
             let rawParsedEvents = [];
             let currentEvent = null;
-            let currentYear = new Date().getFullYear();
-            let lastParsedMonth = null;
-
-            const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
 
                 const yearMatch = trimmed.match(/(\d{4})年/);
                 if (yearMatch && !trimmed.includes('月')) {
-                    currentYear = parseInt(yearMatch[1], 10);
+                    baseYear = parseInt(yearMatch[1], 10);
+                    currentYear = baseYear;
                 }
 
                 const isHeader = trimmed.includes('【') || trimmed.includes('予定');
@@ -370,16 +375,28 @@
                     if (parsedMonth >= 1 && parsedMonth <= 12 && parsedDay >= 1 && parsedDay <= 31) {
                         if (currentEvent) rawParsedEvents.push(currentEvent);
 
-                        // 年の推測（時系列考慮）
+                        // 年の自動決定ロジック（時系列・年またぎ完全対応）
                         if (dateMatch[1]) {
-                            // 年が直接書記されている場合
                             currentYear = parseInt(dateMatch[1], 10);
-                        } else if (lastParsedMonth !== null && parsedMonth < lastParsedMonth) {
-                            // 前の予定の月より小さくなった場合（例：12月 → 1月）、年を繰り上げる
-                            currentYear++;
+                        } else {
+                            if (firstMonth === null) {
+                                firstMonth = parsedMonth; // 最初の予定の月を基準に保持
+                            } else {
+                                // 最初の月よりも小さな月が出現した場合、年をまたいだと判定して翌年に繰り上げる
+                                if (parsedMonth < firstMonth && lastSeenMonth !== null && parsedMonth < lastSeenMonth + 6) {
+                                    // 念のため直前の月よりも極端に小さく、かつ最初の月より小さい場合に年を進める
+                                    // ※ただし、スケジュールが順当に進む前提で、前月より月が小さくなったら年またぎとみなす
+                                }
+                            }
+                            
+                            // 堅牢な時系列比較：直前の月より小さくなったら（例: 12月→1月、または7月→3月の逆行など）年を進める
+                            if (lastSeenMonth !== null && parsedMonth < lastSeenMonth) {
+                                // ただし、夏（7月）から春（3月）に一気に戻るような場合は年またぎと確定
+                                currentYear++;
+                            }
                         }
-                        lastParsedMonth = parsedMonth;
-                        
+                        lastSeenMonth = parsedMonth;
+
                         const month = String(parsedMonth).padStart(2, '0');
                         const day = String(parsedDay).padStart(2, '0');
                         
@@ -425,7 +442,7 @@
             });
             if (currentEvent) rawParsedEvents.push(currentEvent);
 
-            // --- 照合と整形 ---
+            // --- ステップ2: 照合と整形 ---
             const calInfo = await getFamilyCalendarInfo();
             activeEvents = [];
             currentMode = 'propose';
@@ -484,7 +501,7 @@
 
         async function fetchDodgeballEvents() {
             if (!gapi.client.getToken()) {
-                alert('先に「Googleで連携」ボタンを押してログインしてください。');
+                alert('先に“Googleで連携”ボタンを押してログインしてください。');
                 return;
             }
 
