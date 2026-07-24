@@ -68,9 +68,6 @@
             padding: 10px 14px;
             border-radius: 8px;
             margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
 
         label {
@@ -83,14 +80,13 @@
 
         textarea {
             width: 100%;
-            height: 140px;
+            height: 120px;
             padding: 12px;
             border: 1px solid var(--border-color);
             border-radius: 10px;
             font-size: 0.9rem;
             box-sizing: border-box;
             resize: vertical;
-            transition: border-color 0.2s;
             outline: none;
         }
 
@@ -111,24 +107,23 @@
             margin-top: 10px;
         }
 
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
+        .btn-primary { background-color: var(--primary-color); color: white; }
         .btn-primary:hover { background-color: var(--primary-hover); }
         .btn-primary:disabled { background-color: #dadce0; cursor: not-allowed; }
 
-        .btn-secondary {
-            background-color: #f1f3f4;
-            color: var(--text-color);
-        }
+        .btn-secondary { background-color: #f1f3f4; color: var(--text-color); }
         .btn-secondary:hover { background-color: #e8eaed; }
 
-        .btn-success {
-            background-color: var(--success-color);
-            color: white;
-        }
+        .btn-success { background-color: var(--success-color); color: white; }
         .btn-success:hover { background-color: var(--success-hover); }
+
+        .btn-small {
+            width: auto;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            margin: 0;
+            border-radius: 6px;
+        }
 
         .divider {
             border: none;
@@ -136,10 +131,16 @@
             margin: 20px 0;
         }
 
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
         .preview-title {
             font-size: 1rem;
             font-weight: 700;
-            margin-bottom: 12px;
         }
 
         .event-card {
@@ -149,13 +150,28 @@
             padding: 14px;
             margin-bottom: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
         }
 
-        .event-header {
+        .event-checkbox {
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .event-content {
+            flex: 1;
+        }
+
+        .event-title-row {
             font-weight: 700;
             color: var(--primary-color);
             font-size: 0.95rem;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
         }
@@ -170,15 +186,14 @@
             line-height: 1.4;
         }
     </style>
-    <!-- Google Identity Services & GAPI Client Libraries -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
 
     <div class="container">
-        <!-- バージョン情報 -->
-        <div class="version-badge">v1.1.1</div>
+        <!-- バージョン表記 -->
+        <div class="version-badge">v1.2.0</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -191,10 +206,13 @@
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
         <button class="btn-secondary" onclick="parseAndPreview()">解析してプレビュー表示</button>
 
-        <div id="previewSection" style="margin-top: 20px;">
-            <div class="preview-title">登録プレビュー</div>
+        <div id="previewSection" style="margin-top: 20px; display: none;">
+            <div class="preview-header">
+                <div class="preview-title">登録プレビュー</div>
+                <button class="btn-secondary btn-small" onclick="toggleSelectAll()">全選択 / 全解除</button>
+            </div>
             <div id="previewArea"></div>
-            <button id="sync-btn" class="btn-success" onclick="syncToGoogleCalendar()" style="display:none;">ファミリーカレンダーに一括追加</button>
+            <button id="sync-btn" class="btn-success" onclick="syncToGoogleCalendar()">選択した予定をカレンダーに追加</button>
         </div>
     </div>
 
@@ -206,6 +224,7 @@
         let gapiInited = false;
         let gsisInited = false;
         let parsedEvents = [];
+        let allSelected = true;
 
         function gapiLoaded() {
             gapi.load('client', async () => {
@@ -271,7 +290,6 @@
             lines.forEach(line => {
                 line = line.trim();
                 
-                // 日付検出 (例: 2026/08/01, 8/1)
                 const dateMatch = line.match(/(\d{4}\/)?(\d{1,2})\/(\d{1,2})/);
                 if (dateMatch) {
                     if (currentEvent) parsedEvents.push(currentEvent);
@@ -281,8 +299,10 @@
                     const day = dateMatch[3].padStart(2, '0');
                     
                     currentEvent = {
+                        id: Date.now() + Math.random(),
+                        selected: true, // デフォルトで選択状態
                         date: `${year}-${month}-${day}`,
-                        baseTitle: 'ドッチ 練習', // 基本タイトル
+                        baseTitle: 'ドッチ 練習',
                         hasKeyDuty: false,
                         meetingTime: '',
                         members: [],
@@ -296,16 +316,13 @@
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
 
-                    // 1. 鍵当番の検出（タイトル調整＋メモ末尾保存）
                     if (processedLine.includes('加藤') || processedLine.includes('鍵当番') || processedLine.includes('鍵')) {
                         currentEvent.hasKeyDuty = true;
                         currentEvent.keyDutyText = processedLine;
                     } 
-                    // 2. 集合時間の抽出
                     else if (processedLine.includes('集合時間') || processedLine.includes('集合')) {
                         currentEvent.meetingTime = processedLine;
                     } 
-                    // 3. 選手権メンバーの抽出
                     else if (processedLine.includes('選手権メンバー') || processedLine.includes('メンバー')) {
                         currentEvent.members.push(processedLine);
                     } 
@@ -323,24 +340,23 @@
         // プレビュー表示
         function renderPreview() {
             const area = document.getElementById('previewArea');
+            const section = document.getElementById('previewSection');
             area.innerHTML = '';
 
             if (parsedEvents.length === 0) {
                 area.innerHTML = '<p style="color: var(--sub-text); font-size: 0.85rem;">日付を含む予定が見つかりませんでした。</p>';
+                section.style.display = 'block';
                 document.getElementById('sync-btn').style.display = 'none';
                 return;
             }
 
-            parsedEvents.forEach((ev) => {
-                // 鍵当番フラグがある場合、タイトルを「ドッチ 練習・鍵当番」に変更
+            parsedEvents.forEach((ev, idx) => {
                 ev.title = ev.hasKeyDuty ? `${ev.baseTitle}・鍵当番` : ev.baseTitle;
 
                 let memoParts = [];
                 if (ev.meetingTime) memoParts.push(`🕒 ${ev.meetingTime}`);
                 if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
                 if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
-                
-                // 鍵当番テキストがある場合はメモ末尾にも追記
                 if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
                 ev.finalDescription = memoParts.join('\n\n');
@@ -348,16 +364,32 @@
                 const card = document.createElement('div');
                 card.className = 'event-card';
                 card.innerHTML = `
-                    <div class="event-header">
-                        <span>${ev.title}</span>
-                        <span>${ev.date}</span>
+                    <input type="checkbox" class="event-checkbox" id="chk_${idx}" ${ev.selected ? 'checked' : ''} onchange="toggleSelect(${idx})">
+                    <div class="event-content">
+                        <div class="event-title-row">
+                            <span>${ev.title}</span>
+                            <span>${ev.date}</span>
+                        </div>
+                        <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
                     </div>
-                    <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
                 `;
                 area.appendChild(card);
             });
 
+            section.style.display = 'block';
             document.getElementById('sync-btn').style.display = 'block';
+        }
+
+        // 個別選択のトグル
+        function toggleSelect(idx) {
+            parsedEvents[idx].selected = !parsedEvents[idx].selected;
+        }
+
+        // 全選択 / 全解除
+        function toggleSelectAll() {
+            allSelected = !allSelected;
+            parsedEvents.forEach(ev => ev.selected = allSelected);
+            renderPreview();
         }
 
         // ファミリーカレンダーIDの検索
@@ -366,12 +398,7 @@
                 const response = await gapi.client.calendar.calendarList.list();
                 const calendars = response.result.items;
                 const familyCal = calendars.find(c => c.summary === 'ファミリー' || c.summary.toLowerCase() === 'family');
-                
-                if (familyCal) {
-                    return familyCal.id;
-                } else {
-                    return 'primary';
-                }
+                return familyCal ? familyCal.id : 'primary';
             } catch (err) {
                 console.error('カレンダー検索失敗:', err);
                 return 'primary';
@@ -385,13 +412,19 @@
                 return;
             }
 
+            const targets = parsedEvents.filter(ev => ev.selected);
+            if (targets.length === 0) {
+                alert('登録する予定が選択されていません。');
+                return;
+            }
+
             document.getElementById('status').innerText = 'ファミリーカレンダーを検索中...';
             const calendarId = await getFamilyCalendarId();
 
-            document.getElementById('status').innerText = '予定を追加中...';
+            document.getElementById('status').innerText = '選択した予定を追加中...';
 
             try {
-                for (const ev of parsedEvents) {
+                for (const ev of targets) {
                     const eventResource = {
                         'summary': ev.title,
                         'description': ev.finalDescription,
@@ -404,7 +437,7 @@
                         'resource': eventResource
                     });
                 }
-                alert('すべての予定をファミリーカレンダーに追加しました！');
+                alert(`${targets.length}件の予定をファミリーカレンダーに追加しました！`);
                 document.getElementById('status').innerText = '追加が完了しました。';
             } catch (err) {
                 console.error('登録エラー:', err);
