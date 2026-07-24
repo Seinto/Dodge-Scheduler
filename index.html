@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.6</div>
+        <div class="version-badge">v1.7.8</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -218,7 +218,6 @@
 
         <hr class="divider">
 
-        <!-- テキスト解析・登録セクション -->
         <label for="inputText">テキストを入力・貼り付け</label>
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
         <button id="parse-btn" class="btn-primary" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
@@ -415,9 +414,12 @@
 
                     currentEvent.blockText += ' ' + processedLine;
 
-                    // ①の判定用：大会名称（杯、CUP、フェスタ、カップ、大会、試合）若しくは練習試合の抽出
+                    // ①の判定用：大会名称（杯、CUP、フェスタ、カップ、大会）若しくは練習試合の抽出
+                    // （「※9:30試合」のような時刻付きの文言は除外しつつ、正確な大会・練習試合名だけをキャッチ）
                     if (!currentEvent.customEventTitle) {
-                        const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|練習試合|杯|CUP|フェスタ|カップ))/i);
+                        const cleanLineForMatch = processedLine.replace(/(?:[※\d:]+)(?=試合)/g, '');
+                        const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|杯|CUP|フェスタ|カップ))/i);
+                        
                         if (matchTournament && !processedLine.includes('【')) {
                             let foundTitle = matchTournament[1].replace(/[「」]/g, '');
                             if (!foundTitle.includes('ドッチ')) {
@@ -482,7 +484,7 @@
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
                     // ==========================================
-                    // ユーザー指定の順序に基づくタイトル判定ロジック (v1.7.6)
+                    // ユーザー指定の順序に基づくタイトル判定ロジック (v1.7.8)
                     // ==========================================
                     let baseTitle = '';
                     
