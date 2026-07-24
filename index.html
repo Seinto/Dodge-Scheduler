@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dodgeball Schedule Manager</title>
+    <title>Dodge-Scheduler</title>
     <link rel="manifest" href="manifest.json">
     <style>
         :root {
@@ -216,15 +216,16 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.2</div>
+        <div class="version-badge">v1.8.3</div>
 
-        <h1>🏈 ドッチ予定管理</h1>
+        <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
         
         <button id="auth-btn" class="btn-primary" onclick="handleAuthClick()" disabled>Googleで連携・ログイン</button>
 
         <hr class="divider">
 
+        <!-- テキスト解析・登録セクション -->
         <label for="inputText">テキストを入力・貼り付け</label>
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
         <button id="parse-btn" class="btn-primary" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
@@ -340,7 +341,6 @@
 
             document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得・照合中...';
 
-            // 全角数字・英字・記号の正規化
             const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９～〜]/g, function(s) {
                 if (s === '～' || s === '〜') return '~';
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -422,7 +422,6 @@
 
                     currentEvent.blockText += ' ' + processedLine;
 
-                    // タイトル抽出
                     if (!currentEvent.customEventTitle) {
                         const ignoreWords = ['費用', 'エアコン', '駐車場', '弁当', '審査', '審判', '会場準備', 'タイムスケジュール'];
                         const isIgnoredLine = ignoreWords.some(word => processedLine.includes(word));
@@ -446,7 +445,6 @@
                         }
                     }
 
-                    // 実施時間抽出
                     const timeMatch = processedLine.match(/(\d{1,2}:\d{2})\s*(?:~|〜|-)\s*(\d{1,2}:\d{2})/);
                     if (timeMatch && !currentEvent.timeRange) {
                         currentEvent.timeRange = {
@@ -455,7 +453,6 @@
                         };
                     }
 
-                    // 場所（体育館など）の抽出
                     if ((processedLine.includes('体育館') || processedLine.includes('アリーナ') || processedLine.includes('グランド') || processedLine.includes('運動場')) && !currentEvent.location) {
                         currentEvent.location = processedLine;
                     }
