@@ -1,212 +1,255 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>カレンダー更新 PWA</title>
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#1a73e8">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://apis.google.com/js/api.js" async defer></script>
-  <style>
-    body { font-family: sans-serif; padding: 20px; background: #f0f2f5; color: #333; }
-    .card { background: white; padding: 24px; border-radius: 12px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    h2, h3 { margin-top: 0; color: #1a73e8; }
-    textarea { width: 100%; height: 140px; border: 1px solid #ccc; border-radius: 6px; padding: 8px; font-size: 14px; box-sizing: border-box; }
-    button { width: 100%; padding: 12px; margin-top: 10px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    .sec-btn { background: #34a853; }
-    
-    /* 提案スケジュール一覧のスタイル */
-    #proposal_section { margin-top: 20px; border-top: 2px dashed #eee; padding-top: 15px; display: none; }
-    .item-row { border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; margin-bottom: 8px; background: #fafafa; display: flex; align-items: flex-start; gap: 10px; }
-    .item-row input[type="checkbox"] { margin-top: 4px; transform: scale(1.2); }
-    .item-info { flex: 1; font-size: 14px; }
-    .badge { display: inline-block; padding: 2px 6px; font-size: 11px; font-weight: bold; border-radius: 4px; color: white; margin-left: 6px; }
-    .badge-update { background-color: #e67e22; }
-    .badge-new { background-color: #27ae60; }
-
-    #log { margin-top: 16px; font-size: 13px; white-space: pre-wrap; background: #282c34; color: #abb2bf; padding: 12px; border-radius: 6px; max-height: 200px; overflow-y: auto; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dodgeball Schedule Manager</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background: #f9f9f9; }
+        h1 { font-size: 1.2rem; color: #333; }
+        textarea { width: 100%; height: 150px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #ccc; padding: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: #4285F4; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+        button:disabled { background-color: #ccc; }
+        .card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-title { font-weight: bold; color: #1a73e8; }
+        .card-memo { font-size: 0.85rem; color: #555; white-space: pre-wrap; margin-top: 5px; background: #f1f3f4; padding: 8px; border-radius: 4px; }
+        #status { font-size: 0.9rem; color: #666; margin-bottom: 10px; }
+    </style>
+    <!-- Google Identity Services & GAPI Client Libraries -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
 </head>
 <body>
 
-<div class="card">
-  <h2>ドッチ予定 カレンダー更新</h2>
-  
-  <div>
-    <h3>1. 連絡テキスト貼り付け</h3>
-    <textarea id="raw_text" placeholder="ここに添付資料や連絡テキストを貼り付けてください..."></textarea>
-    <button onclick="parseAndPropose()">テキストから更新案を作成</button>
-  </div>
+    <h1>🏈 ドッチ予定管理 (Dodgeball Planner)</h1>
+    <div id="status">Google認証の初期化中...</div>
+    <button id="auth-btn" onclick="handleAuthClick()" disabled>Googleでログイン・連携</button>
 
-  <!-- 提案スケジュール選択エリア -->
-  <div id="proposal_section">
-    <h3>2. 更新対象の選択</h3>
-    <p style="font-size: 12px; color: #666;">※変更点（※付）かつ4年生以上対象の予定を抽出しています。</p>
-    <div id="proposal_list"></div>
+    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ddd;">
 
-    <button id="auth_btn" onclick="handleAuth()">3. Googleログイン・連携</button>
-    <button id="update_btn" class="sec-btn" onclick="updateSelectedCalendar()" disabled>4. 選択した予定をカレンダーに適用</button>
-  </div>
+    <label for="inputText"><b>テキストを入力（貼り付け）:</b></label>
+    <textarea id="inputText" placeholder="※変更点やテキスト資料をここに貼り付け..."></textarea>
+    <button onclick="parseAndPreview()">解析してプレビューを表示</button>
 
-  <div id="log">ログ: 準備完了</div>
-</div>
+    <h3>登録プレビュー</h3>
+    <div id="previewArea"></div>
+    <button id="sync-btn" onclick="syncToGoogleCalendar()" style="display:none; background-color: #34A853;">Googleカレンダー（ファミリー）に一括追加</button>
 
-<script>
-  // ★取得したクライアントIDをここに入力
-  const CLIENT_ID = '771522706078-js00qiifo90o0l12i9b0i9uqghvanfea.apps.googleusercontent.com';
-  const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
+    <script>
+        // 【要設定】ご自身のOAuth 2.0 クライアントIDを入力してください
+        const CLIENT_ID = '771522706078-js00qiifo90o0l12i9b0i9uqghvanfea.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar';
 
-  let tokenClient;
-  let proposedItems = [];
+        let tokenClient;
+        let gapiInited = false;
+        let gsisInited = false;
+        let parsedEvents = [];
 
-  function gapiLoaded() {
-    gapi.load('client', async () => {
-      await gapi.client.init({
-        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
-      });
-    });
-  }
+        function gapiLoaded() {
+            gapi.load('client', async () => {
+                await gapi.client.init({
+                    discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+                });
+                gapiInited = true;
+                maybeEnableButtons();
+            });
+        }
 
-  function gisLoaded() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: '', 
-    });
-  }
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: '', // 後で動的に設定
+            });
+            gsisInited = true;
+            maybeEnableButtons();
+        }
 
-  window.onload = () => {
-    gapiLoaded();
-    gisLoaded();
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js');
-    }
-  };
+        function maybeEnableButtons() {
+            if (gapiInited && gsisInited) {
+                document.getElementById('auth-btn').disabled = false;
+                document.getElementById('status').innerText = '準備完了。「Googleでログイン」を押してください。';
+            }
+        }
 
-  // ① テキストから要件を適用して提案リストを作成
-  function parseAndPropose() {
-    const text = document.getElementById('raw_text').value;
-    const logDiv = document.getElementById('log');
-    
-    if (!text.trim()) {
-      alert("テキストを入力してください。");
-      return;
-    }
-
-    logDiv.innerText = "テキストを解析中...\n";
-
-    // ★添付テキスト等のルール（※付・4年対象・表記変換等）に基づいた解析ロジック
-    // （実用的な静的/抽出サンプルルール適用）
-    proposedItems = [
-      { id: 1, date: '2026-07-25', start: '09:00', end: '11:30', title: 'ドッチ 練習・保護者会', location: '下羽栗小', desc: '', type: '更新' },
-      { id: 2, date: '2026-07-26', start: '09:00', end: '16:00', title: 'ドッチ 練習試合', location: '本郷小', desc: '', type: '更新' },
-      { id: 3, date: '2026-08-01', start: '09:00', end: '17:00', title: 'ドッチ 練習試合', location: '中郷', desc: '', type: '更新' },
-      { id: 4, date: '2026-08-02', start: '09:00', end: '17:00', title: 'ドッチ 壮行試合', location: '岐南町立東小', desc: '選手権メンバーのみ\nオフィシャルのみ', type: '更新' },
-      { id: 5, date: '2026-08-12', start: '19:00', end: '21:00', title: 'ドッチ 鍵当番 練習', location: '下羽栗小', desc: '', type: '新規' },
-      { id: 6, date: '2026-08-23', start: '09:00', end: '12:00', title: 'ドッチ 練習・保護者会', location: '下羽栗小', desc: '', type: '更新' }
-    ];
-
-    renderProposalList();
-    document.getElementById('proposal_section').style.display = 'block';
-    logDiv.innerText = "提案スケジュールを作成しました。更新したい予定にチェックを入れてください。";
-  }
-
-  // 画面にチェックボックス付き一覧を描画
-  function renderProposalList() {
-    const container = document.getElementById('proposal_list');
-    container.innerHTML = '';
-
-    proposedItems.forEach(item => {
-      const row = document.createElement('div');
-      row.className = 'item-row';
-      
-      const badgeClass = item.type === '更新' ? 'badge-update' : 'badge-new';
-
-      row.innerHTML = `
-        <input type="checkbox" id="item_${item.id}" value="${item.id}" checked>
-        <div class="item-info">
-          <strong>${item.date} (${item.start}〜${item.end})</strong>
-          <span class="badge ${badgeClass}">${item.type}</span><br>
-          件名: ${item.title}<br>
-          場所: ${item.location}
-          ${item.desc ? `<br><small style="color:#666">メモ: ${item.desc.replace(/\n/g, ', ')}</small>` : ''}
-        </div>
-      `;
-      container.appendChild(row);
-    });
-  }
-
-  function handleAuth() {
-    tokenClient.callback = async (resp) => {
-      if (resp.error) return;
-      document.getElementById('update_btn').disabled = false;
-      document.getElementById('log').innerText = "認証完了！「選択した予定をカレンダーに適用」を押してください。";
-    };
-    tokenClient.requestAccessToken({prompt: 'consent'});
-  }
-
-  // ② 選択された予定のみGoogleカレンダー（ファミリーカレンダー）に登録・更新
-  async function updateSelectedCalendar() {
-    const logDiv = document.getElementById('log');
-    logDiv.innerText = "Googleカレンダーの更新を開始します...\n\n";
-
-    // チェックが入っているIDを取得
-    const selectedIds = Array.from(document.querySelectorAll('#proposal_list input[type="checkbox"]:checked'))
-                             .map(cb => parseInt(cb.value));
-
-    const targets = proposedItems.filter(item => selectedIds.includes(item.id));
-
-    if (targets.length === 0) {
-      alert("更新する予定が選択されていません。");
-      return;
-    }
-
-    for (const item of targets) {
-      const timeMin = new Date(`${item.date}T00:00:00+09:00`).toISOString();
-      const timeMax = new Date(`${item.date}T23:59:59+09:00`).toISOString();
-
-      try {
-        // 対象日のドッチ関連予定を取得
-        const res = await gapi.client.calendar.events.list({
-          'calendarId': 'primary', // ★ファミリーカレンダーのIDを指定（例: 'familyXXX@group.calendar.google.com'）
-          'timeMin': timeMin,
-          'timeMax': timeMax,
-          'q': 'ドッチ'
-        });
-
-        const events = res.result.items;
-        const eventData = {
-          'summary': item.title,
-          'location': item.location,
-          'description': item.desc,
-          'start': { 'dateTime': `${item.date}T${item.start}:00+09:00` },
-          'end': { 'dateTime': `${item.date}T${item.end}:00+09:00` }
+        window.onload = () => {
+            gapiLoaded();
+            gisLoaded();
         };
 
-        if (events && events.length > 0) {
-          // 上書き更新
-          await gapi.client.calendar.events.update({
-            'calendarId': 'primary',
-            'eventId': events[0].id,
-            'resource': eventData
-          });
-          logDiv.innerText += `[上書き完了] ${item.date}: ${item.title}\n`;
-        } else {
-          // 新規作成
-          await gapi.client.calendar.events.insert({
-            'calendarId': 'primary',
-            'resource': eventData
-          });
-          logDiv.innerText += `[新規作成完了] ${item.date}: ${item.title}\n`;
+        function handleAuthClick() {
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    throw (resp);
+                }
+                document.getElementById('status').innerText = '認証成功！カレンダー連携の準備ができました。';
+                document.getElementById('auth-btn').innerText = '認証済み';
+                document.getElementById('auth-btn').style.backgroundColor = '#888';
+            };
+
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                tokenClient.requestAccessToken({prompt: ''});
+            }
         }
-      } catch (err) {
-        logDiv.innerText += `[エラー] ${item.date}: ${err.message}\n`;
-      }
-    }
-    logDiv.innerText += "\n✨ 選択した予定の処理がすべて完了しました！";
-  }
-</script>
+
+        // テキスト解析ロジック
+        function parseAndPreview() {
+            const text = document.getElementById('inputText').value;
+            if (!text.trim()) {
+                alert('テキストを入力してください');
+                return;
+            }
+
+            parsedEvents = [];
+            const lines = text.split('\n');
+            let currentEvent = null;
+
+            // テキストの簡易構文解析（ルールに合わせて自動置換）
+            lines.forEach(line => {
+                line = line.trim();
+                
+                // 日付の検出例: "2026/08/01" や "8/1" など
+                const dateMatch = line.match(/(\d{4}\/)?(\d{1,2})\/(\d{1,2})/);
+                if (dateMatch) {
+                    if (currentEvent) parsedEvents.push(currentEvent);
+                    
+                    const year = dateMatch[1] ? dateMatch[1].replace('/', '') : new Date().getFullYear();
+                    const month = dateMatch[2].padStart(2, '0');
+                    const day = dateMatch[3].padStart(2, '0');
+                    
+                    currentEvent = {
+                        date: `${year}-${month}-${day}`,
+                        title: 'ドッチ練習', // デフォルトタイトル
+                        meetingTime: '',
+                        members: [],
+                        rawNotes: []
+                    };
+                }
+
+                if (currentEvent) {
+                    // ルールに基づく表記の置換
+                    let processedLine = line
+                        .replace(/ドッチボール/g, 'ドッチ')
+                        .replace(/小学校/g, '小');
+
+                    // タイトル関連の判定（例: 加藤さん → 鍵当番）
+                    if (processedLine.includes('加藤')) {
+                        currentEvent.title = '【鍵当番】ドッチ';
+                    }
+
+                    // 集合時間の抽出
+                    if (processedLine.includes('集合時間') || processedLine.includes('集合')) {
+                        currentEvent.meetingTime = processedLine;
+                    } 
+                    // 選手権メンバーの抽出
+                    else if (processedLine.includes('選手権メンバー') || processedLine.includes('メンバー')) {
+                        currentEvent.members.push(processedLine);
+                    } 
+                    else {
+                        currentEvent.rawNotes.push(processedLine);
+                    }
+                }
+            });
+
+            if (currentEvent) parsedEvents.push(currentEvent);
+
+            renderPreview();
+        }
+
+        // プレビュー表示
+        function renderPreview() {
+            const area = document.getElementById('previewArea');
+            area.innerHTML = '';
+
+            if (parsedEvents.length === 0) {
+                area.innerHTML = '<p>有効な予定が抽出できませんでした。</p>';
+                document.getElementById('sync-btn').style.display = 'none';
+                return;
+            }
+
+            parsedEvents.forEach((ev, idx) => {
+                // メモ欄（description）の整形
+                let memoText = [];
+                if (ev.meetingTime) memoText.push(`🕒 ${ev.meetingTime}`);
+                if (ev.members.length > 0) memoText.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
+                if (ev.rawNotes.length > 0) memoText.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
+                
+                ev.finalDescription = memoText.join('\n\n');
+
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="card-title">[${ev.date}] ${ev.title}</div>
+                    <div class="card-memo">${ev.finalDescription || 'メモなし'}</div>
+                `;
+                area.appendChild(card);
+            });
+
+            document.getElementById('sync-btn').style.display = 'block';
+        }
+
+        // ファミリーカレンダーのIDを取得する関数
+        async function getFamilyCalendarId() {
+            try {
+                const response = await gapi.client.calendar.calendarList.list();
+                const calendars = response.result.items;
+                
+                // 名前が「ファミリー」または「Family」のカレンダーを探す
+                const familyCal = calendars.find(c => c.summary === 'ファミリー' || c.summary.toLowerCase() === 'family');
+                
+                if (familyCal) {
+                    console.log('ファミリーカレンダーを発見:', familyCal.id);
+                    return familyCal.id;
+                } else {
+                    console.warn('ファミリーカレンダーが見つからないため、メインカレンダーを使用します。');
+                    return 'primary'; // 見つからなければプライマリ
+                }
+            } catch (err) {
+                console.error('カレンダー一覧の取得に失敗:', err);
+                return 'primary';
+            }
+        }
+
+        // Googleカレンダーへ一括同期
+        async function syncToGoogleCalendar() {
+            if (!gapi.client.getToken()) {
+                alert('先に「Googleでログイン・連携」ボタンを押して認証してください。');
+                return;
+            }
+
+            document.getElementById('status').innerText = 'ファミリーカレンダーを確認中...';
+            const calendarId = await getFamilyCalendarId();
+
+            document.getElementById('status').innerText = 'カレンダーへ登録中...';
+
+            try {
+                for (const ev of parsedEvents) {
+                    const eventResource = {
+                        'summary': ev.title,
+                        'description': ev.finalDescription,
+                        'start': {
+                            'date': ev.date // 終日予定として登録
+                        },
+                        'end': {
+                            'date': ev.date
+                        }
+                    };
+
+                    await gapi.client.calendar.events.insert({
+                        'calendarId': calendarId,
+                        'resource': eventResource
+                    });
+                }
+                alert('すべての予定をファミリーカレンダーに追加しました！');
+                document.getElementById('status').innerText = '登録が正常に完了しました。';
+            } catch (err) {
+                console.error('登録エラー:', err);
+                alert('予定の登録中にエラーが発生しました。詳細: ' + err.message);
+            }
+        }
+    </script>
 </body>
 </html>
