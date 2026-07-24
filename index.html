@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.1</div>
+        <div class="version-badge">v1.6.3</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -321,7 +321,7 @@
             }
         }
 
-        // 4 & 5. テキスト解析・整形（高精度厳格化版）
+        // 4 & 5. テキスト解析・整形（「加藤さん」完全限定版）
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -336,7 +336,7 @@
 
             document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得・照合中...';
 
-            // 全角英数を半角に変換（記号含む）
+            // 全角英数を半角に変換
             const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９～〜]/g, function(s) {
                 if (s === '～' || s === '〜') return '~';
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -347,21 +347,16 @@
             let currentEvent = null;
             let currentYear = new Date().getFullYear();
 
-            // 厳格化した日付検知用パターン
-            // 1: 2026年7月25日 / 7月25日（月・日を必須とし「.」は除外）
-            // 2: 2026/7/25 / 7/25 (スラッシュ/ハイフン区切り)
             const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
 
-                // 明示的な年指定（例: 2027年）の検知
                 const yearMatch = trimmed.match(/(\d{4})年/);
                 if (yearMatch && !trimmed.includes('月')) {
                     currentYear = parseInt(yearMatch[1], 10);
                 }
 
-                // 「学年表記 (3.4.5.6年生)」や「時間の表記 (9:00〜17:00)」を弾く
                 const isHeader = trimmed.includes('【') || trimmed.includes('予定');
                 const isGradeOrTime = trimmed.includes('年生') || trimmed.includes(':') || trimmed.includes('：');
 
@@ -371,7 +366,6 @@
                     const parsedMonth = parseInt(dateMatch[2], 10);
                     const parsedDay = parseInt(dateMatch[3], 10);
 
-                    // 月(1-12)・日(1-31)の有効数値チェック
                     if (parsedMonth >= 1 && parsedMonth <= 12 && parsedDay >= 1 && parsedDay <= 31) {
                         if (currentEvent) rawParsedEvents.push(currentEvent);
                         
@@ -396,23 +390,20 @@
                 if (currentEvent) {
                     if (trimmed.includes('※')) currentEvent.hasAsterisk = true;
 
-                    // 表記揺れ補正
                     let processedLine = trimmed
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
 
-                    // 時間帯の抽出（例: 9:00~11:30, 19:00~21:00）
                     const timeMatch = processedLine.match(/\d{1,2}:\d{2}\s*~\s*\d{1,2}:\d{2}/);
                     if (timeMatch && !currentEvent.timeRange) {
                         currentEvent.timeRange = timeMatch[0];
                     }
 
-                    // 鍵当番の検知
-                    if (processedLine.includes('加藤') || processedLine.includes('鍵当番') || processedLine.includes('鍵')) {
+                    // 「加藤さん」が完全一致した場合のみタイトルに「鍵当番」を反映させる
+                    if (processedLine.includes('加藤さん')) {
                         currentEvent.hasKeyDuty = true;
                         currentEvent.keyDutyText = processedLine;
                     } 
-                    // 集合時間の検出
                     else if (processedLine.includes('集合') || processedLine.includes('現地集合')) {
                         currentEvent.meetingTime = processedLine;
                     } else if (processedLine.includes('選手権メンバー') || processedLine.includes('メンバー')) {
@@ -455,6 +446,7 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
+                    // 「加藤さん」の場合のみ「・鍵当番」が付く
                     let finalTitle = ev.hasKeyDuty ? `${ev.baseTitle}・鍵当番` : ev.baseTitle;
                     if (ev.timeRange) {
                         finalTitle += ` (${ev.timeRange})`;
@@ -472,7 +464,7 @@
                 }
             }
 
-            // 時系列でソート
+            // 時系列ソート
             activeEvents.sort((a, b) => a.date.localeCompare(b.date));
 
             document.getElementById('status').innerText = `照合完了：${activeEvents.length}件の提案を作成しました（カレンダー: ${calInfo.summary}）`;
