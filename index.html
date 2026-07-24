@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.8</div>
+        <div class="version-badge">v1.7.9</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -414,8 +414,9 @@
 
                     currentEvent.blockText += ' ' + processedLine;
 
-                    // ①の判定用：大会名称（杯、CUP、フェスタ、カップ、大会）若しくは練習試合の抽出
-                    // （「※9:30試合」のような時刻付きの文言は除外しつつ、正確な大会・練習試合名だけをキャッチ）
+                    // ==========================================
+                    // 同日の最初に見つかったマッチを優先して保持する (v1.7.9)
+                    // ==========================================
                     if (!currentEvent.customEventTitle) {
                         const cleanLineForMatch = processedLine.replace(/(?:[※\d:]+)(?=試合)/g, '');
                         const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|杯|CUP|フェスタ|カップ))/i);
@@ -484,13 +485,13 @@
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
                     // ==========================================
-                    // ユーザー指定の順序に基づくタイトル判定ロジック (v1.7.8)
+                    // ユーザー指定の順序に基づくタイトル判定ロジック
                     // ==========================================
                     let baseTitle = '';
                     
                     const hasTournamentOrPracticeGame = Boolean(ev.customEventTitle) || ev.blockText.includes('練習試合');
                     
-                    // ②指定された5つの学校・体育館のいずれかに一致するか判定
+                    // 指定された5つの学校・体育館のいずれかに一致するか判定
                     const specifiedSchools = [
                         '岐南町立北小学校体育館', '北小学校体育館', '北小体育館',
                         '下羽栗小学校体育館', '下羽栗小体育館',
@@ -501,13 +502,10 @@
                     const isSpecifiedSchool = specifiedSchools.some(school => ev.blockText.includes(school));
 
                     if (hasTournamentOrPracticeGame) {
-                        // ① 大会名称若しくは練習試合がある場合
                         baseTitle = ev.customEventTitle || 'ドッチ 練習試合';
                     } else if (!isSpecifiedSchool) {
-                        // ② 指定された学校・体育館ではない場合
                         baseTitle = 'ドッチ試合';
                     } else {
-                        // ③ ①②のいずれでも無い場合
                         baseTitle = 'ドッチ 練習';
                     }
 
