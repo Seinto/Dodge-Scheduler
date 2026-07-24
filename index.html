@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.6</div>
+        <div class="version-badge">v1.6.7</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -232,7 +232,6 @@
             </div>
             <div id="previewArea"></div>
             
-            <!-- モードによってボタンを切り替え -->
             <button id="sync-btn" class="btn-success" style="display: none;" onclick="syncToGoogleCalendar()">選択した予定をカレンダーに適用</button>
             <button id="delete-btn" class="btn-danger" style="display: none;" onclick="deleteSelectedEvents()">選択した予定を削除する</button>
         </div>
@@ -321,7 +320,6 @@
             }
         }
 
-        // 4 & 5. テキスト解析・整形（高精度マルチ年・見出し連動補正版 v1.6.6）
         async function parseAndPropose() {
             const text = document.getElementById('inputText').value;
             if (!text.trim()) {
@@ -336,7 +334,6 @@
 
             document.getElementById('status').innerText = 'ファミリーカレンダーの予定を取得・照合中...';
 
-            // 全角英数を半角に変換
             const normalizedText = text.replace(/[Ａ-Ｚａ-ｚ０-９～〜]/g, function(s) {
                 if (s === '～' || s === '〜') return '~';
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
@@ -344,7 +341,7 @@
 
             const lines = normalizedText.split('\n');
             
-            let currentYear = 2026; // 基準年（必要に応じて自動または初期値）
+            let currentYear = 2026;
             let lastParsedMonth = null;
             let rawParsedEvents = [];
             let currentEvent = null;
@@ -354,30 +351,25 @@
             lines.forEach(line => {
                 const trimmed = line.trim();
 
-                // 1. 行内に「〇〇年」が明記されている場合はその年に即座に合わせる
                 const explicitYearMatch = trimmed.match(/(\d{4})年/);
                 if (explicitYearMatch) {
                     currentYear = parseInt(explicitYearMatch[1], 10);
                 }
 
-                // 2. 「【7月予定】」「【８月予定】」などのセクション見出しを検知して自動で年を割り当てる（7月〜12月は2026年、翌年1月〜3月は2027年など）
                 const sectionMonthMatch = trimmed.match(/【\s*([０-９\d]+)\s*月/);
                 if (sectionMonthMatch) {
                     const sMonth = parseInt(sectionMonthMatch[1].replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)), 10);
                     if (!explicitYearMatch) {
-                        // 7, 8, 9, 10, 11, 12月なら2026年、1, 2, 3月なら2027年と判定するルールを適用
                         if (sMonth >= 7 && sMonth <= 12) {
                             currentYear = 2026;
                         } else if (sMonth >= 1 && sMonth <= 6) {
                             currentYear = 2027;
                         }
                     }
-                    lastParsedMonth = null; // セクションが変わったら月リセット
+                    lastParsedMonth = null;
                 }
 
                 const isHeader = trimmed.includes('【') && trimmed.includes('予定');
-                const isGradeOrTime = trimmed.includes('年生') || trimmed.includes(':') || trimmed.includes('：');
-
                 const dateMatch = trimmed.match(strictDateRegex);
 
                 if (dateMatch && !isHeader) {
@@ -390,7 +382,6 @@
                         if (dateMatch[1]) {
                             currentYear = parseInt(dateMatch[1], 10);
                         } else {
-                            // 前の月より小さくなった場合（例: 12月 → 1月、または7月 → 2月など）、年またぎとして翌年にする
                             if (lastParsedMonth !== null && parsedMonth < lastParsedMonth) {
                                 currentYear++;
                             }
@@ -421,12 +412,14 @@
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
 
-                    const timeMatch = processedLine.match(/\d{1,2}:\d{2}\s*~\s*\d{1,2}:\d{2}/);
+                    const timeMatch = processedLine.match(/(\d{1,2}:\d{2})\s*(?:~|〜|-)\s*(\d{1,2}:\d{2})/);
                     if (timeMatch && !currentEvent.timeRange) {
-                        currentEvent.timeRange = timeMatch[0];
+                        currentEvent.timeRange = {
+                            start: timeMatch[1].padStart(5, '0'),
+                            end: timeMatch[2].padStart(5, '0')
+                        };
                     }
 
-                    // 「加藤さん」が完全一致した場合のみタイトルに「鍵当番」を反映させる
                     if (processedLine.includes('加藤さん')) {
                         currentEvent.hasKeyDuty = true;
                         currentEvent.keyDutyText = processedLine;
@@ -442,7 +435,6 @@
             });
             if (currentEvent) rawParsedEvents.push(currentEvent);
 
-            // --- ステップ2: 照合と整形 ---
             const calInfo = await getFamilyCalendarInfo();
             activeEvents = [];
             currentMode = 'propose';
@@ -467,22 +459,21 @@
 
                 if (!hasExisting || ev.hasAsterisk) {
                     let memoParts = [];
-                    if (ev.timeRange) memoParts.push(`⏰ 実施時間: ${ev.timeRange}`);
+                    if (ev.timeRange) memoParts.push(`⏰ 実施時間: ${ev.timeRange.start}〜${ev.timeRange.end}`);
                     if (ev.meetingTime) memoParts.push(`🕒 集合時間: ${ev.meetingTime}`);
                     if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    // 「加藤さん」の場合のみ「・鍵当番」が付く
                     let finalTitle = ev.hasKeyDuty ? `${ev.baseTitle}・鍵当番` : ev.baseTitle;
                     if (ev.timeRange) {
-                        finalTitle += ` (${ev.timeRange})`;
+                        finalTitle += ` (${ev.timeRange.start}〜${ev.timeRange.end})`;
                     }
 
                     activeEvents.push({
                         date: ev.date,
                         title: finalTitle,
-                        timeRange: ev.timeRange,
+                        timeRange: ev.timeRange || null,
                         finalDescription: memoParts.join('\n\n'),
                         selected: true,
                         type: hasExisting ? '更新' : '新規',
@@ -491,7 +482,6 @@
                 }
             }
 
-            // 時系列ソート
             activeEvents.sort((a, b) => a.date.localeCompare(b.date));
 
             document.getElementById('status').innerText = `照合完了：${activeEvents.length}件の提案を作成しました（カレンダー: ${calInfo.summary}）`;
@@ -616,12 +606,18 @@
 
             try {
                 for (const ev of targets) {
-                    const eventResource = {
+                    let eventResource = {
                         'summary': ev.title,
-                        'description': ev.finalDescription,
-                        'start': { 'date': ev.date },
-                        'end': { 'date': ev.date }
+                        'description': ev.finalDescription
                     };
+
+                    if (ev.timeRange) {
+                        eventResource.start = { 'dateTime': `${ev.date}T${ev.timeRange.start}:00+09:00` };
+                        eventResource.end = { 'dateTime': `${ev.date}T${ev.timeRange.end}:00+09:00` };
+                    } else {
+                        eventResource.start = { 'date': ev.date };
+                        eventResource.end = { 'date': ev.date };
+                    }
 
                     if (ev.type === '更新' && ev.existingEventId) {
                         await gapi.client.calendar.events.update({
