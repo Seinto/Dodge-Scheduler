@@ -202,6 +202,13 @@
             border-radius: 6px;
             line-height: 1.4;
         }
+        
+        .event-location {
+            font-size: 0.8rem;
+            color: var(--primary-hover);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
     </style>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://apis.google.com/js/api.js" async defer></script>
@@ -209,7 +216,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.1</div>
+        <div class="version-badge">v1.8.2</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -218,7 +225,6 @@
 
         <hr class="divider">
 
-        <!-- テキスト解析・登録セクション -->
         <label for="inputText">テキストを入力・貼り付け</label>
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
         <button id="parse-btn" class="btn-primary" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
@@ -399,6 +405,7 @@
                             hasAsterisk: false,
                             timeRange: '',
                             meetingTime: '',
+                            location: '',
                             members: [],
                             keyDutyText: '',
                             rawNotes: []
@@ -415,11 +422,7 @@
 
                     currentEvent.blockText += ' ' + processedLine;
 
-                    // ==========================================
-                    // 誤認防止の完全厳格化 (v1.8.1)
-                    // 「費用」「エアコン」「駐車場」「弁当」など説明文・雑務の行は
-                    // カップや杯という文字が含まれていてもタイトル抽出の対象外にする
-                    // ==========================================
+                    // タイトル抽出
                     if (!currentEvent.customEventTitle) {
                         const ignoreWords = ['費用', 'エアコン', '駐車場', '弁当', '審査', '審判', '会場準備', 'タイムスケジュール'];
                         const isIgnoredLine = ignoreWords.some(word => processedLine.includes(word));
@@ -443,12 +446,18 @@
                         }
                     }
 
+                    // 実施時間抽出
                     const timeMatch = processedLine.match(/(\d{1,2}:\d{2})\s*(?:~|〜|-)\s*(\d{1,2}:\d{2})/);
                     if (timeMatch && !currentEvent.timeRange) {
                         currentEvent.timeRange = {
                             start: timeMatch[1].padStart(5, '0'),
                             end: timeMatch[2].padStart(5, '0')
                         };
+                    }
+
+                    // 場所（体育館など）の抽出
+                    if ((processedLine.includes('体育館') || processedLine.includes('アリーナ') || processedLine.includes('グランド') || processedLine.includes('運動場')) && !currentEvent.location) {
+                        currentEvent.location = processedLine;
                     }
 
                     if (processedLine.includes('加藤さん')) {
@@ -492,18 +501,14 @@
                     let memoParts = [];
                     if (ev.timeRange) memoParts.push(`⏰ 実施時間: ${ev.timeRange.start}〜${ev.timeRange.end}`);
                     if (ev.meetingTime) memoParts.push(`🕒 集合時間: ${ev.meetingTime}`);
+                    if (ev.location) memoParts.push(`📍 場所: ${ev.location}`);
                     if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    // ==========================================
-                    // ユーザー指定の順序に基づくタイトル判定ロジック
-                    // ==========================================
                     let baseTitle = '';
-                    
                     const hasTournamentOrPracticeGame = Boolean(ev.customEventTitle) || ev.blockText.includes('練習試合');
                     
-                    // 指定された5つの学校・体育館のいずれかに一致するか判定
                     const specifiedSchools = [
                         '岐南町立北小学校体育館', '北小学校体育館', '北小体育館',
                         '下羽栗小学校体育館', '下羽栗小体育館',
@@ -527,6 +532,7 @@
                         date: ev.date,
                         title: finalTitle,
                         timeRange: ev.timeRange || null,
+                        location: ev.location || '',
                         finalDescription: memoParts.join('\n\n'),
                         selected: true,
                         type: hasExisting ? '更新' : '新規',
@@ -568,6 +574,7 @@
                         id: ev.id,
                         title: ev.summary || '（タイトルなし）',
                         date: dateStr,
+                        location: ev.location || '',
                         finalDescription: ev.description || '',
                         selected: false,
                         type: '登録済み'
@@ -628,6 +635,7 @@
                             </span>
                             <span>${ev.date}</span>
                         </div>
+                        ${ev.location ? `<div class="event-location">📍 ${ev.location}</div>` : ''}
                         <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
                     </div>
                 `;
@@ -663,6 +671,10 @@
                         'summary': ev.title,
                         'description': ev.finalDescription
                     };
+
+                    if (ev.location) {
+                        eventResource.location = ev.location;
+                    }
 
                     if (ev.timeRange) {
                         eventResource.start = { 'dateTime': `${ev.date}T${ev.timeRange.start}:00+09:00` };
