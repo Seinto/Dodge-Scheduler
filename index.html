@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.6.8</div>
+        <div class="version-badge">v1.6.9</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -393,7 +393,7 @@
                         
                         currentEvent = {
                             date: `${currentYear}-${month}-${day}`,
-                            baseTitle: 'ドッチ 練習',
+                            customEventTitle: null, // 大会や試合の名前を格納する用
                             hasKeyDuty: false,
                             hasAsterisk: false,
                             timeRange: '',
@@ -411,6 +411,20 @@
                     let processedLine = trimmed
                         .replace(/ドッチボール/g, 'ドッチ')
                         .replace(/小学校/g, '小');
+
+                    // 「〇〇大会」や「〇〇試合」を検知して抽出する
+                    if (!currentEvent.customEventTitle) {
+                        const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|カップ))/);
+                        if (matchTournament) {
+                            let foundTitle = matchTournament[1].replace(/[「」]/g, '');
+                            // 「ドッチ」が重複しないように整える
+                            if (!foundTitle.includes('ドッチ')) {
+                                currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
+                            } else {
+                                currentEvent.customEventTitle = foundTitle;
+                            }
+                        }
+                    }
 
                     const timeMatch = processedLine.match(/(\d{1,2}:\d{2})\s*(?:~|〜|-)\s*(\d{1,2}:\d{2})/);
                     if (timeMatch && !currentEvent.timeRange) {
@@ -465,8 +479,9 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    // タイトルからカッコ内の時間表記を削除し、シンプルにする
-                    let finalTitle = ev.hasKeyDuty ? `${ev.baseTitle}・鍵当番` : ev.baseTitle;
+                    // タイトル決定ロジック：大会/試合があればそれを使用、なければ「ドッチ 練習」、鍵当番があれば追加
+                    let baseTitle = ev.customEventTitle ? ev.customEventTitle : 'ドッチ 練習';
+                    let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
 
                     activeEvents.push({
                         date: ev.date,
