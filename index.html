@@ -202,12 +202,44 @@
             border-radius: 6px;
             line-height: 1.4;
         }
-        
+
         .event-location {
             font-size: 0.8rem;
             color: var(--primary-hover);
             margin-bottom: 4px;
             font-weight: 600;
+        }
+
+        .diff-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .diff-box {
+            font-size: 0.8rem;
+            background: #f8f9fa;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .diff-box-title {
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: var(--sub-text);
+            font-size: 0.75rem;
+        }
+
+        .diff-old {
+            border-left: 3px solid var(--danger-color);
+            background: #fdf8f8;
+        }
+
+        .diff-new {
+            border-left: 3px solid var(--success-color);
+            background: #f4fbf6;
         }
     </style>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -216,7 +248,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.3</div>
+        <div class="version-badge">v1.8.4</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -533,7 +565,12 @@
                         finalDescription: memoParts.join('\n\n'),
                         selected: true,
                         type: hasExisting ? '更新' : '新規',
-                        existingEventId: hasExisting ? matchedEvent.id : null
+                        existingEventId: hasExisting ? matchedEvent.id : null,
+                        oldData: hasExisting ? {
+                            title: matchedEvent.summary || '',
+                            location: matchedEvent.location || '',
+                            description: matchedEvent.description || ''
+                        } : null
                     });
                 }
             }
@@ -620,6 +657,32 @@
                 const badgeHtml = ev.type === '新規' ? '<span class="badge badge-new">新規</span>' : 
                                  ev.type === '更新' ? '<span class="badge badge-update">更新</span>' : '';
 
+                let cardContentHtml = '';
+
+                if (ev.type === '更新' && ev.oldData) {
+                    cardContentHtml = `
+                        <div class="diff-container">
+                            <div class="diff-box diff-old">
+                                <div class="diff-box-title">【変更前（カレンダー登録中）】</div>
+                                <div><b>件名:</b> ${ev.oldData.title}</div>
+                                <div><b>場所:</b> ${ev.oldData.location || '（なし）'}</div>
+                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${ev.oldData.description || '（なし）'}</div>
+                            </div>
+                            <div class="diff-box diff-new">
+                                <div class="diff-box-title">【変更後（今回の解析結果）】</div>
+                                <div><b>件名:</b> ${ev.title}</div>
+                                <div><b>場所:</b> ${ev.location || '（なし）'}</div>
+                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${ev.finalDescription || '（なし）'}</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    cardContentHtml = `
+                        ${ev.location ? `<div class="event-location">📍 ${ev.location}</div>` : ''}
+                        <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
+                    `;
+                }
+
                 const card = document.createElement('div');
                 card.className = 'event-card';
                 card.innerHTML = `
@@ -632,8 +695,7 @@
                             </span>
                             <span>${ev.date}</span>
                         </div>
-                        ${ev.location ? `<div class="event-location">📍 ${ev.location}</div>` : ''}
-                        <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
+                        ${cardContentHtml}
                     </div>
                 `;
                 area.appendChild(card);
