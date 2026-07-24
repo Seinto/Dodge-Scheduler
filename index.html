@@ -209,7 +209,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.7.3</div>
+        <div class="version-badge">v1.7.4</div>
 
         <h1>🏈 ドッチ予定管理</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -416,9 +416,9 @@
 
                     currentEvent.blockText += ' ' + processedLine;
 
-                    // 1. 大会や試合の名称抽出（〇〇杯、〇〇CUP、〇〇フェスタ、〇〇カップ、〇〇大会、練習試合など）
+                    // ①の判定用：大会名称（杯、CUP、フェスタ、カップ、大会、試合）若しくは練習試合の抽出
                     if (!currentEvent.customEventTitle) {
-                        const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|杯|CUP|フェスタ|カップ))/i);
+                        const matchTournament = processedLine.match(/([^\s]+(?:大会|試合|練習試合|杯|CUP|フェスタ|カップ))/i);
                         if (matchTournament && !processedLine.includes('【')) {
                             let foundTitle = matchTournament[1].replace(/[「」]/g, '');
                             if (!foundTitle.includes('ドッチ')) {
@@ -482,16 +482,23 @@
                     if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
                     if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    // 【修正されたタイトル決定ロジック】
+                    // ==========================================
+                    // ユーザー指定の順序に基づくタイトル判定ロジック
+                    // ==========================================
                     let baseTitle = '';
-                    if (ev.customEventTitle) {
-                        // 大会名や明確な試合名（杯、CUP、フェスタ、カップ、大会、練習試合など）がある場合
-                        baseTitle = ev.customEventTitle;
+                    
+                    const hasTournamentOrPracticeGame = Boolean(ev.customEventTitle) || ev.blockText.includes('練習試合');
+                    const isGinanOrKasamatsuSchool = ev.blockText.includes('岐南') || ev.blockText.includes('笠松');
+
+                    if (hasTournamentOrPracticeGame) {
+                        // ① 大会名称（杯、CUP、フェスタ、カップ、大会、試合）若しくは練習試合がある場合
+                        baseTitle = ev.customEventTitle || 'ドッチ 練習試合';
+                    } else if (!isGinanOrKasamatsuSchool) {
+                        // ② 場所が岐南町・笠松町の小学校ではない場合
+                        baseTitle = 'ドッチ試合';
                     } else {
-                        // 明確な大会・試合名がない場合は基本「ドッチ 練習」とする
-                        // ただし、テキスト中に明確に「練習試合」または独立した「試合」の記載がある場合は「ドッチ試合」にする
-                        const hasExplicitGameKeyword = ev.blockText.includes('練習試合') || /\b試合\b/.test(ev.blockText);
-                        baseTitle = hasExplicitGameKeyword ? 'ドッチ試合' : 'ドッチ 練習';
+                        // ③ ①②のいずれでも無い場合（岐南・笠松の小学校での通常の活動等）
+                        baseTitle = 'ドッチ 練習';
                     }
 
                     let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
