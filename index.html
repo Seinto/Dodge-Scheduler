@@ -251,7 +251,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.6</div>
+        <div class="version-badge">v1.8.7</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -604,13 +604,22 @@
                 return;
             }
 
-            document.getElementById('status').innerText = 'ファミリーカレンダーからドッチ関連の予定を全件取得中...';
+            document.getElementById('status').innerText = 'ファミリーカレンダーからドッチ関連の予定を取得中...';
             const calInfo = await getFamilyCalendarInfo();
+
+            // 今日の日付を YYYY-MM-DD 形式で取得
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            const timeMinIso = `${todayStr}T00:00:00+09:00`;
 
             try {
                 const res = await gapi.client.calendar.events.list({
                     'calendarId': calInfo.id,
                     'q': 'ドッチ',
+                    'timeMin': timeMinIso, // 操作当日以降の予定に絞り込み
                     'singleEvents': true,
                     'orderBy': 'startTime'
                 });
@@ -633,7 +642,7 @@
 
                 activeEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-                document.getElementById('status').innerText = `取得完了：${activeEvents.length}件のドッチ関連予定が見つかりました（カレンダー: ${calInfo.summary}）`;
+                document.getElementById('status').innerText = `取得完了：本日以降 ${activeEvents.length}件のドッチ関連予定が見つかりました（カレンダー: ${calInfo.summary}）`;
                 allSelected = false;
                 renderPreview();
             } catch (err) {
@@ -656,7 +665,7 @@
                 syncBtn.style.display = 'block';
                 deleteBtn.style.display = 'none';
             } else {
-                titleElem.innerText = '登録済みドッチ予定一覧（時系列順）';
+                titleElem.innerText = '登録済みドッチ予定一覧（本日以降・時系列順）';
                 syncBtn.style.display = 'none';
                 deleteBtn.style.display = 'block';
             }
