@@ -183,6 +183,24 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
+        }
+
+        .editable-title {
+            flex: 1;
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            background: #f8f9fa;
+            outline: none;
+        }
+        .editable-title:focus {
+            background: #ffffff;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
         }
 
         .badge {
@@ -191,7 +209,7 @@
             border-radius: 4px;
             color: white;
             font-weight: 600;
-            margin-left: 6px;
+            white-space: nowrap;
         }
         .badge-new { background-color: var(--success-color); }
         .badge-update { background-color: var(--warning-color); }
@@ -251,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.7</div>
+        <div class="version-badge">v1.8.8</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -607,7 +625,6 @@
             document.getElementById('status').innerText = 'ファミリーカレンダーからドッチ関連の予定を取得中...';
             const calInfo = await getFamilyCalendarInfo();
 
-            // 今日の日付を YYYY-MM-DD 形式で取得
             const today = new Date();
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -619,7 +636,7 @@
                 const res = await gapi.client.calendar.events.list({
                     'calendarId': calInfo.id,
                     'q': 'ドッチ',
-                    'timeMin': timeMinIso, // 操作当日以降の予定に絞り込み
+                    'timeMin': timeMinIso,
                     'singleEvents': true,
                     'orderBy': 'startTime'
                 });
@@ -695,7 +712,6 @@
                             </div>
                             <div class="diff-box diff-new">
                                 <div class="diff-box-title">【変更後（今回の解析結果）】</div>
-                                <div><b>件名:</b> ${ev.title}</div>
                                 <div><b>場所:</b> ${ev.location || '（なし）'}</div>
                                 <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${ev.finalDescription || '（なし）'}</div>
                             </div>
@@ -714,10 +730,8 @@
                     <input type="checkbox" class="event-checkbox" id="chk_${idx}" ${ev.selected ? 'checked' : ''} onchange="toggleSelect(${idx})">
                     <div class="event-content">
                         <div class="event-title-row">
-                            <span>
-                                ${ev.title}
-                                ${badgeHtml}
-                            </span>
+                            <input type="text" class="editable-title" id="title_${idx}" value="${ev.title}" oninput="updateTitle(${idx}, this.value)">
+                            ${badgeHtml}
                             <span>${ev.date}</span>
                         </div>
                         ${cardContentHtml}
@@ -731,6 +745,10 @@
 
         function toggleSelect(idx) {
             activeEvents[idx].selected = !activeEvents[idx].selected;
+        }
+
+        function updateTitle(idx, newTitle) {
+            activeEvents[idx].title = newTitle;
         }
 
         function toggleSelectAll() {
