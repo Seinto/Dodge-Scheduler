@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.8</div>
+        <div class="version-badge">v1.8.9</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -320,6 +320,18 @@
         let activeEvents = [];
         let currentMode = '';
         let allSelected = false;
+
+        // カレンダーの予定や貼り付けテキストに由来する値をinnerHTMLへ挿入する前に
+        // 必ずこの関数でエスケープする（XSS対策）。属性値（value="..."）にも安全に使える。
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         function gapiLoaded() {
             gapi.load('client', async () => {
@@ -706,21 +718,21 @@
                         <div class="diff-container">
                             <div class="diff-box diff-old">
                                 <div class="diff-box-title">【変更前（カレンダー登録中）】</div>
-                                <div><b>件名:</b> ${ev.oldData.title}</div>
-                                <div><b>場所:</b> ${ev.oldData.location || '（なし）'}</div>
-                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${ev.oldData.description || '（なし）'}</div>
+                                <div><b>件名:</b> ${escapeHtml(ev.oldData.title)}</div>
+                                <div><b>場所:</b> ${escapeHtml(ev.oldData.location) || '（なし）'}</div>
+                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${escapeHtml(ev.oldData.description) || '（なし）'}</div>
                             </div>
                             <div class="diff-box diff-new">
                                 <div class="diff-box-title">【変更後（今回の解析結果）】</div>
-                                <div><b>場所:</b> ${ev.location || '（なし）'}</div>
-                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${ev.finalDescription || '（なし）'}</div>
+                                <div><b>場所:</b> ${escapeHtml(ev.location) || '（なし）'}</div>
+                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${escapeHtml(ev.finalDescription) || '（なし）'}</div>
                             </div>
                         </div>
                     `;
                 } else {
                     cardContentHtml = `
-                        ${ev.location ? `<div class="event-location">📍 ${ev.location}</div>` : ''}
-                        <div class="event-memo">${ev.finalDescription || 'メモなし'}</div>
+                        ${ev.location ? `<div class="event-location">📍 ${escapeHtml(ev.location)}</div>` : ''}
+                        <div class="event-memo">${escapeHtml(ev.finalDescription) || 'メモなし'}</div>
                     `;
                 }
 
@@ -730,9 +742,9 @@
                     <input type="checkbox" class="event-checkbox" id="chk_${idx}" ${ev.selected ? 'checked' : ''} onchange="toggleSelect(${idx})">
                     <div class="event-content">
                         <div class="event-title-row">
-                            <input type="text" class="editable-title" id="title_${idx}" value="${ev.title}" oninput="updateTitle(${idx}, this.value)">
+                            <input type="text" class="editable-title" id="title_${idx}" value="${escapeHtml(ev.title)}" oninput="updateTitle(${idx}, this.value)">
                             ${badgeHtml}
-                            <span>${ev.date}</span>
+                            <span>${escapeHtml(ev.date)}</span>
                         </div>
                         ${cardContentHtml}
                     </div>
