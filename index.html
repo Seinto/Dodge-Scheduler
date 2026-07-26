@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.8.9</div>
+        <div class="version-badge">v1.9.0</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -312,7 +312,10 @@
         }
 
         const CLIENT_ID = '771522706078-js00qiifo90o0l12i9b0i9uqghvanfea.apps.googleusercontent.com';
-        const SCOPES = 'https://www.googleapis.com/auth/calendar';
+        // 「予定の追加・更新・削除」と「カレンダー一覧の参照」のみに絞る。
+        // 以前の 'https://www.googleapis.com/auth/calendar' はカレンダー自体の削除や
+        // 共有設定変更まで許可してしまうフルアクセス権限だったため、必要最小限に縮小。
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly';
 
         let tokenClient;
         let gapiInited = false;
