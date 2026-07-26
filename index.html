@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.9.0</div>
+        <div class="version-badge">v1.9.1</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -794,8 +794,8 @@
                     }
 
                     if (ev.timeRange) {
-                        eventResource.start = { 'dateTime': `${ev.date}T${ev.timeRange.start}:00+09:00` };
-                        eventResource.end = { 'dateTime': `${ev.date}T${ev.timeRange.end}:00+09:00` };
+                        eventResource.start = { 'dateTime': `${ev.date}T${ev.timeRange.start}:00+09:00`, 'timeZone': 'Asia/Tokyo' };
+                        eventResource.end = { 'dateTime': `${ev.date}T${ev.timeRange.end}:00+09:00`, 'timeZone': 'Asia/Tokyo' };
                     } else {
                         eventResource.start = { 'date': ev.date };
                         eventResource.end = { 'date': ev.date };
