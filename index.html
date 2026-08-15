@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.9.4</div>
+        <div class="version-badge">v1.9.5</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -428,9 +428,8 @@
             let rawParsedEvents = [];
             let currentEvent = null;
 
-            // v1.9.4 改良版正規表現
-            // 行の先頭（または記号直後）にあり、明確に「月」と「日」がある、または正当な区切りである場合のみ認識
-            const strictDateRegex = /^[^\d]*?(?:(\d{4})[年/-]\s*)?(\d{1,2})[月/.-]\s*(\d{1,2})日?(?:\s*\(.[金土日日月火水木]?\))?/;
+            // v1.9.5 全角カッコ（日）等に対応した厳格日付正規表現
+            const strictDateRegex = /^[^\d]*?(?:(\d{4})[年/-]\s*)?(\d{1,2})[月/.-]\s*(\d{1,2})日?(?:\s*[（\(][月火水木金土日祝・]+[）\)])?/;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
@@ -458,19 +457,14 @@
 
                 const isHeader = trimmed.includes('【') && trimmed.includes('予定');
                 
-                // ガード条件: 生徒数・学年・人数の表記はすべて日付として拒絶する
+                // ガード条件: 学年・生徒数・人数の表記（「●4.5.6年生」等）は日付認識から完全排除
                 const isGradeOrQuantityLine = /[●・]?\s*[\d.]+\s*(?:年生|年|名|人)/.test(trimmed);
 
                 let dateMatch = null;
                 if (!isHeader && !isGradeOrQuantityLine) {
-                    // 行の先頭に日付がある場合のみ検索
                     const potentialMatch = trimmed.match(strictDateRegex);
-                    if (potentialMatch) {
-                        // ドット区切りの場合、直後に「年生」などがついていないか徹底チェック
-                        const matchedText = potentialMatch[0];
-                        if (!/年生|年|名|人/.test(trimmed)) {
-                            dateMatch = potentialMatch;
-                        }
+                    if (potentialMatch && !/年生|年|名|人/.test(trimmed)) {
+                        dateMatch = potentialMatch;
                     }
                 }
 
@@ -523,7 +517,7 @@
                             let cleanLineForMatch = processedLine.replace(/^.*?[、。は]\s*/, '');
                             cleanLineForMatch = cleanLineForMatch.replace(/(?:[※\d:]+)(?=試合)/g, '');
                             
-                            const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|杯|CUP|フェスタ|カップ))/i);
+                            const matchTournament = cleanLineForMatch.match(/([^\s]+(?:大会|練習試合|交流会|杯|CUP|フェスタ|カップ))/i);
                             
                             if (matchTournament) {
                                 let foundTitle = matchTournament[1].replace(/[「」]/g, '');
@@ -587,53 +581,52 @@
 
                 const hasExisting = Boolean(matchedEvent);
 
-                if (!hasExisting || ev.hasAsterisk) {
-                    let memoParts = [];
-                    if (ev.timeRange) memoParts.push(`⏰ 実施時間: ${ev.timeRange.start}〜${ev.timeRange.end}`);
-                    if (ev.meetingTime) memoParts.push(`🕒 集合時間: ${ev.meetingTime}`);
-                    if (ev.location) memoParts.push(`📍 場所: ${ev.location}`);
-                    if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
-                    if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
-                    if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
+                // 修正ポイント: 既存予定の有無に関わらず全件提案として作成する
+                let memoParts = [];
+                if (ev.timeRange) memoParts.push(`⏰ 実施時間: ${ev.timeRange.start}〜${ev.timeRange.end}`);
+                if (ev.meetingTime) memoParts.push(`🕒 集合時間: ${ev.meetingTime}`);
+                if (ev.location) memoParts.push(`📍 場所: ${ev.location}`);
+                if (ev.members.length > 0) memoParts.push(`🏆 選手権メンバー:\n${ev.members.join('\n')}`);
+                if (ev.rawNotes.length > 0) memoParts.push(`📝 備考:\n${ev.rawNotes.join('\n')}`);
+                if (ev.keyDutyText) memoParts.push(`🔑 鍵当番: ${ev.keyDutyText}`);
 
-                    let baseTitle = '';
-                    const hasTournamentOrPracticeGame = Boolean(ev.customEventTitle) || ev.blockText.includes('練習試合');
-                    
-                    const specifiedSchools = [
-                        '岐南町立北小学校体育館', '北小学校体育館', '北小体育館',
-                        '下羽栗小学校体育館', '下羽栗小体育館',
-                        '岐南町立西小学校体育館', '西小学校体育館', '西小体育館',
-                        '岐南町立東小学校体育館', '東小学校体育館', '東小体育館',
-                        '笠松小学校体育館', '笠松小体育館'
-                    ];
-                    const isSpecifiedSchool = specifiedSchools.some(school => ev.blockText.includes(school));
+                let baseTitle = '';
+                const hasTournamentOrPracticeGame = Boolean(ev.customEventTitle) || ev.blockText.includes('練習試合') || ev.blockText.includes('交流会');
+                
+                const specifiedSchools = [
+                    '岐南町立北小学校体育館', '北小学校体育館', '北小体育館',
+                    '下羽栗小学校体育館', '下羽栗小体育館',
+                    '岐南町立西小学校体育館', '西小学校体育館', '西小体育館',
+                    '岐南町立東小学校体育館', '東小学校体育館', '東小体育館',
+                    '笠松小学校体育館', '笠松小体育館'
+                ];
+                const isSpecifiedSchool = specifiedSchools.some(school => ev.blockText.includes(school));
 
-                    if (hasTournamentOrPracticeGame) {
-                        baseTitle = ev.customEventTitle || 'ドッチ 練習試合';
-                    } else if (!isSpecifiedSchool) {
-                        baseTitle = 'ドッチ試合';
-                    } else {
-                        baseTitle = 'ドッチ 練習';
-                    }
-
-                    let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
-
-                    activeEvents.push({
-                        date: ev.date,
-                        title: finalTitle,
-                        timeRange: ev.timeRange || null,
-                        location: ev.location || '',
-                        finalDescription: memoParts.join('\n\n'),
-                        selected: true,
-                        type: hasExisting ? '更新' : '新規',
-                        existingEventId: hasExisting ? matchedEvent.id : null,
-                        oldData: hasExisting ? {
-                            title: matchedEvent.summary || '',
-                            location: matchedEvent.location || '',
-                            description: matchedEvent.description || ''
-                        } : null
-                    });
+                if (hasTournamentOrPracticeGame) {
+                    baseTitle = ev.customEventTitle || 'ドッチ 練習試合';
+                } else if (!isSpecifiedSchool) {
+                    baseTitle = 'ドッチ試合';
+                } else {
+                    baseTitle = 'ドッチ 練習';
                 }
+
+                let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
+
+                activeEvents.push({
+                    date: ev.date,
+                    title: finalTitle,
+                    timeRange: ev.timeRange || null,
+                    location: ev.location || '',
+                    finalDescription: memoParts.join('\n\n'),
+                    selected: true,
+                    type: hasExisting ? '更新' : '新規',
+                    existingEventId: hasExisting ? matchedEvent.id : null,
+                    oldData: hasExisting ? {
+                        title: matchedEvent.summary || '',
+                        location: matchedEvent.location || '',
+                        description: matchedEvent.description || ''
+                    } : null
+                });
             }
 
             activeEvents.sort((a, b) => a.date.localeCompare(b.date));
