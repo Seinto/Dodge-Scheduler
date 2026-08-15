@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.9.3</div>
+        <div class="version-badge">v1.9.4</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -428,9 +428,9 @@
             let rawParsedEvents = [];
             let currentEvent = null;
 
-            // 修正ポイント：行の先頭付近にあり、明確に「月」と「日」の漢字が含まれているか「/」「-」で区切られた日付のみを判定
-            // 「4.5.6年生」などの小数点混じりの数値を確実に排除します
-            const strictDateRegex = /^\s*(?:(\d{4})[年/-]\s*)?(\d{1,2})(?:月|[/,-])\s*(\d{1,2})(?:日)?(?:\s*\(.[金土日日月火水木]?\))?/ ;
+            // v1.9.4 改良版正規表現
+            // 行の先頭（または記号直後）にあり、明確に「月」と「日」がある、または正当な区切りである場合のみ認識
+            const strictDateRegex = /^[^\d]*?(?:(\d{4})[年/-]\s*)?(\d{1,2})[月/.-]\s*(\d{1,2})日?(?:\s*\(.[金土日日月火水木]?\))?/;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
@@ -458,11 +458,23 @@
 
                 const isHeader = trimmed.includes('【') && trimmed.includes('予定');
                 
-                // 「年生」「年生のみ」などの学年表記が含まれる行は日付として無視
-                const isGradeLine = trimmed.includes('年生');
-                const dateMatch = !isGradeLine ? trimmed.match(strictDateRegex) : null;
+                // ガード条件: 生徒数・学年・人数の表記はすべて日付として拒絶する
+                const isGradeOrQuantityLine = /[●・]?\s*[\d.]+\s*(?:年生|年|名|人)/.test(trimmed);
 
-                if (dateMatch && !isHeader) {
+                let dateMatch = null;
+                if (!isHeader && !isGradeOrQuantityLine) {
+                    // 行の先頭に日付がある場合のみ検索
+                    const potentialMatch = trimmed.match(strictDateRegex);
+                    if (potentialMatch) {
+                        // ドット区切りの場合、直後に「年生」などがついていないか徹底チェック
+                        const matchedText = potentialMatch[0];
+                        if (!/年生|年|名|人/.test(trimmed)) {
+                            dateMatch = potentialMatch;
+                        }
+                    }
+                }
+
+                if (dateMatch) {
                     const parsedMonth = parseInt(dateMatch[2], 10);
                     const parsedDay = parseInt(dateMatch[3], 10);
 
