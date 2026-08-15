@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.9.1</div>
+        <div class="version-badge">v1.9.2</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -298,7 +298,6 @@
     </div>
 
     <script>
-        // PWAのService Worker登録処理を追加
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
@@ -312,9 +311,6 @@
         }
 
         const CLIENT_ID = '771522706078-js00qiifo90o0l12i9b0i9uqghvanfea.apps.googleusercontent.com';
-        // 「予定の追加・更新・削除」と「カレンダー一覧の参照」のみに絞る。
-        // 以前の 'https://www.googleapis.com/auth/calendar' はカレンダー自体の削除や
-        // 共有設定変更まで許可してしまうフルアクセス権限だったため、必要最小限に縮小。
         const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly';
 
         let tokenClient;
@@ -324,8 +320,6 @@
         let currentMode = '';
         let allSelected = false;
 
-        // カレンダーの予定や貼り付けテキストに由来する値をinnerHTMLへ挿入する前に
-        // 必ずこの関数でエスケープする（XSS対策）。属性値（value="..."）にも安全に使える。
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str)
@@ -429,12 +423,13 @@
 
             const lines = normalizedText.split('\n');
             
-            let currentYear = 2026;
+            let currentYear = new Date().getFullYear();
             let activeMonth = null;
             let rawParsedEvents = [];
             let currentEvent = null;
 
-            const strictDateRegex = /(?:(\d{4})[年/-])?(\d{1,2})[月/-](\d{1,2})日?/;
+            // 漢字の「年/月/日」、スラッシュ「/」、ハイフン「-」、ドット「.」および区切りスペースに対応
+            const strictDateRegex = /(?:(\d{4})[年/.-]\s*)?(\d{1,2})[月/.-]\s*(\d{1,2})日?/;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
@@ -450,10 +445,11 @@
                     if (sMonth >= 1 && sMonth <= 12) {
                         activeMonth = sMonth;
                         if (!explicitYearMatch) {
+                            const now = new Date();
                             if (activeMonth >= 7 && activeMonth <= 12) {
-                                currentYear = 2026;
+                                currentYear = now.getFullYear();
                             } else if (activeMonth >= 1 && activeMonth <= 6) {
-                                currentYear = 2027;
+                                currentYear = now.getFullYear() + 1;
                             }
                         }
                     }
