@@ -269,7 +269,7 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.9.2</div>
+        <div class="version-badge">v1.9.3</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -428,8 +428,9 @@
             let rawParsedEvents = [];
             let currentEvent = null;
 
-            // 漢字の「年/月/日」、スラッシュ「/」、ハイフン「-」、ドット「.」および区切りスペースに対応
-            const strictDateRegex = /(?:(\d{4})[年/.-]\s*)?(\d{1,2})[月/.-]\s*(\d{1,2})日?/;
+            // 修正ポイント：行の先頭付近にあり、明確に「月」と「日」の漢字が含まれているか「/」「-」で区切られた日付のみを判定
+            // 「4.5.6年生」などの小数点混じりの数値を確実に排除します
+            const strictDateRegex = /^\s*(?:(\d{4})[年/-]\s*)?(\d{1,2})(?:月|[/,-])\s*(\d{1,2})(?:日)?(?:\s*\(.[金土日日月火水木]?\))?/ ;
 
             lines.forEach(line => {
                 const trimmed = line.trim();
@@ -456,7 +457,10 @@
                 }
 
                 const isHeader = trimmed.includes('【') && trimmed.includes('予定');
-                const dateMatch = trimmed.match(strictDateRegex);
+                
+                // 「年生」「年生のみ」などの学年表記が含まれる行は日付として無視
+                const isGradeLine = trimmed.includes('年生');
+                const dateMatch = !isGradeLine ? trimmed.match(strictDateRegex) : null;
 
                 if (dateMatch && !isHeader) {
                     const parsedMonth = parseInt(dateMatch[2], 10);
