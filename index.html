@@ -311,8 +311,8 @@
 <body>
 
     <div class="container">
-        <!-- バージョンアップ v1.9.7 -->
-        <div class="version-badge">v1.9.7</div>
+        <!-- バージョンアップ v1.9.8 -->
+        <div class="version-badge">v1.9.8</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -371,6 +371,23 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        /**
+         * ISO日時文字列（例: 2026-09-05T00:00:00Z）をローカル時間の「HH:MM」表記に正確に変換するヘルパー関数
+         */
+        function extractLocalTimeString(dateTimeStr) {
+            if (!dateTimeStr) return '';
+            try {
+                const dateObj = new Date(dateTimeStr);
+                if (isNaN(dateObj.getTime())) return '';
+                const hours = String(dateObj.getHours()).padStart(2, '0');
+                const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+                return `${hours}:${minutes}`;
+            } catch (e) {
+                console.error('時刻フォーマットエラー:', e);
+                return '';
+            }
         }
 
         function gapiLoaded() {
@@ -654,8 +671,9 @@
                 let oldStartTime = '';
                 let oldEndTime = '';
                 if (matchedEvent && matchedEvent.start && matchedEvent.start.dateTime) {
-                    oldStartTime = matchedEvent.start.dateTime.split('T')[1].substring(0, 5);
-                    oldEndTime = matchedEvent.end.dateTime.split('T')[1].substring(0, 5);
+                    // Dateオブジェクトを使用してローカル時刻をパース（9時間ズレを解消）
+                    oldStartTime = extractLocalTimeString(matchedEvent.start.dateTime);
+                    oldEndTime = extractLocalTimeString(matchedEvent.end.dateTime);
                 }
 
                 activeEvents.push({
@@ -717,8 +735,9 @@
                     let endTime = '';
 
                     if (ev.start.dateTime && ev.end.dateTime) {
-                        startTime = ev.start.dateTime.split('T')[1].substring(0, 5);
-                        endTime = ev.end.dateTime.split('T')[1].substring(0, 5);
+                        // Dateオブジェクトを使用してローカル時刻をパース（9時間ズレを解消）
+                        startTime = extractLocalTimeString(ev.start.dateTime);
+                        endTime = extractLocalTimeString(ev.end.dateTime);
                     }
 
                     return {
@@ -921,7 +940,6 @@
             activeEvents[idx].selected = !activeEvents[idx].selected;
         }
 
-        /* 項目書き換えハンドラー & 差分表示リアルタイム連動 */
         function updateTitle(idx, value) {
             activeEvents[idx].title = value;
             refreshDiffView(idx);
