@@ -273,6 +273,30 @@
             background: #fdf8f8;
         }
 
+        .diff-changes {
+            border-left: 3px solid var(--warning-color);
+            background: #fffdf5;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            line-height: 1.4;
+        }
+
+        .diff-changes-title {
+            font-weight: 700;
+            color: var(--warning-color);
+            font-size: 0.75rem;
+            margin-bottom: 4px;
+        }
+
+        .diff-highlight {
+            font-weight: bold;
+            color: #d93025;
+            background-color: #fce8e6;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
         .diff-new {
             border-left: 3px solid var(--success-color);
             background: #f4fbf6;
@@ -287,8 +311,8 @@
 <body>
 
     <div class="container">
-        <!-- バージョンアップ v1.9.6 -->
-        <div class="version-badge">v1.9.6</div>
+        <!-- バージョンアップ v1.9.7 -->
+        <div class="version-badge">v1.9.7</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -627,6 +651,13 @@
 
                 let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
 
+                let oldStartTime = '';
+                let oldEndTime = '';
+                if (matchedEvent && matchedEvent.start && matchedEvent.start.dateTime) {
+                    oldStartTime = matchedEvent.start.dateTime.split('T')[1].substring(0, 5);
+                    oldEndTime = matchedEvent.end.dateTime.split('T')[1].substring(0, 5);
+                }
+
                 activeEvents.push({
                     date: ev.date,
                     title: finalTitle,
@@ -639,7 +670,8 @@
                     oldData: hasExisting ? {
                         title: matchedEvent.summary || '',
                         location: matchedEvent.location || '',
-                        description: matchedEvent.description || ''
+                        description: matchedEvent.description || '',
+                        timeRange: { start: oldStartTime, end: oldEndTime }
                     } : null
                 });
             }
@@ -712,6 +744,58 @@
             }
         }
 
+        /**
+         * 新旧データの差分を抽出し、変更点だけを太字強調（HTMLタグ）付きで取得する関数
+         */
+        function getDiffSummaryHtml(ev) {
+            if (!ev.oldData) return '';
+
+            let changes = [];
+
+            // 件名の差分
+            if ((ev.oldData.title || '').trim() !== (ev.title || '').trim()) {
+                changes.push(`<b>件名変更:</b> <span class="diff-highlight">${escapeHtml(ev.title || '（なし）')}</span>`);
+            }
+
+            // 時間の差分
+            const oldStart = ev.oldData.timeRange ? ev.oldData.timeRange.start : '';
+            const oldEnd = ev.oldData.timeRange ? ev.oldData.timeRange.end : '';
+            const newStart = ev.timeRange ? ev.timeRange.start : '';
+            const newEnd = ev.timeRange ? ev.timeRange.end : '';
+
+            if (oldStart !== newStart || oldEnd !== newEnd) {
+                const timeText = (newStart || newEnd) ? `${newStart}〜${newEnd}` : '終日指定';
+                changes.push(`<b>時間変更:</b> <span class="diff-highlight">${escapeHtml(timeText)}</span>`);
+            }
+
+            // 場所の差分
+            if ((ev.oldData.location || '').trim() !== (ev.location || '').trim()) {
+                changes.push(`<b>場所変更:</b> <span class="diff-highlight">${escapeHtml(ev.location || '（なし）')}</span>`);
+            }
+
+            // メモ（説明）の差分抽出（行単位）
+            const oldLines = (ev.oldData.description || '').split('\n').map(l => l.trim()).filter(l => l);
+            const newLines = (ev.finalDescription || '').split('\n').map(l => l.trim()).filter(l => l);
+
+            let addedOrChangedLines = newLines.filter(line => !oldLines.includes(line));
+
+            if (addedOrChangedLines.length > 0) {
+                const formattedNotes = addedOrChangedLines.map(l => escapeHtml(l)).join('<br>');
+                changes.push(`<b>メモ追加・変更:</b><br><span class="diff-highlight" style="display:inline-block; margin-top:2px;">${formattedNotes}</span>`);
+            }
+
+            if (changes.length === 0) {
+                return '<div class="diff-changes"><div class="diff-changes-title">🔍 照合結果</div><div>変更箇所はありません（既登録内容と同一）</div></div>';
+            }
+
+            return `
+                <div class="diff-changes">
+                    <div class="diff-changes-title">⚡ 抽出された変更箇所（差分）</div>
+                    ${changes.map(c => `<div>${c}</div>`).join('')}
+                </div>
+            `;
+        }
+
         function renderPreview() {
             const area = document.getElementById('previewArea');
             const section = document.getElementById('previewSection');
@@ -749,14 +833,22 @@
                 let cardContentHtml = '';
 
                 if (ev.type === '更新' && ev.oldData) {
+                    const diffHtml = getDiffSummaryHtml(ev);
+
                     cardContentHtml = `
                         <div class="diff-container">
                             <div class="diff-box diff-old">
                                 <div class="diff-box-title">【変更前（カレンダー登録中）】</div>
                                 <div><b>件名:</b> ${escapeHtml(ev.oldData.title)}</div>
+                                <div><b>時間:</b> ${escapeHtml(ev.oldData.timeRange.start ? `${ev.oldData.timeRange.start}〜${ev.oldData.timeRange.end}` : '終日')}</div>
                                 <div><b>場所:</b> ${escapeHtml(ev.oldData.location) || '（なし）'}</div>
                                 <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${escapeHtml(ev.oldData.description) || '（なし）'}</div>
                             </div>
+                            
+                            <div id="diff_summary_${idx}">
+                                ${diffHtml}
+                            </div>
+
                             <div class="diff-box diff-new">
                                 <div class="diff-box-title">【変更後（編集可能）】</div>
                                 <div>
@@ -818,21 +910,31 @@
             section.style.display = 'block';
         }
 
+        function refreshDiffView(idx) {
+            const container = document.getElementById(`diff_summary_${idx}`);
+            if (container && activeEvents[idx]) {
+                container.innerHTML = getDiffSummaryHtml(activeEvents[idx]);
+            }
+        }
+
         function toggleSelect(idx) {
             activeEvents[idx].selected = !activeEvents[idx].selected;
         }
 
-        /* 項目書き換えハンドラー */
+        /* 項目書き換えハンドラー & 差分表示リアルタイム連動 */
         function updateTitle(idx, value) {
             activeEvents[idx].title = value;
+            refreshDiffView(idx);
         }
 
         function updateLocation(idx, value) {
             activeEvents[idx].location = value;
+            refreshDiffView(idx);
         }
 
         function updateMemo(idx, value) {
             activeEvents[idx].finalDescription = value;
+            refreshDiffView(idx);
         }
 
         function updateTimeRange(idx, key, value) {
@@ -840,6 +942,7 @@
                 activeEvents[idx].timeRange = { start: '', end: '' };
             }
             activeEvents[idx].timeRange[key] = value;
+            refreshDiffView(idx);
         }
 
         function toggleSelectAll() {
