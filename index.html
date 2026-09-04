@@ -168,39 +168,71 @@
         .event-checkbox {
             width: 20px;
             height: 20px;
-            margin-top: 2px;
+            margin-top: 4px;
             cursor: pointer;
             accent-color: var(--primary-color);
         }
 
-        .event-content { flex: 1; }
+        .event-content { 
+            flex: 1; 
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
 
         .event-title-row {
-            font-weight: 700;
-            color: var(--primary-color);
-            font-size: 0.95rem;
-            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 8px;
         }
 
-        .editable-title {
-            flex: 1;
-            padding: 4px 8px;
+        .editable-field {
+            width: 100%;
+            padding: 6px 10px;
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--primary-color);
-            background: #f8f9fa;
-            outline: none;
-        }
-        .editable-title:focus {
+            font-size: 0.85rem;
+            color: var(--text-color);
             background: #ffffff;
+            outline: none;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        .editable-field:focus {
             border-color: var(--primary-color);
             box-shadow: 0 0 0 2px rgba(26,115,232,0.2);
+        }
+
+        .editable-title {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 0.95rem;
+        }
+
+        .editable-textarea {
+            height: 70px;
+            resize: vertical;
+            line-height: 1.4;
+        }
+
+        .time-input-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+        }
+
+        .time-input-group input[type="time"] {
+            width: 110px;
+            padding: 4px 6px;
+        }
+
+        .field-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--sub-text);
+            margin-bottom: 2px;
         }
 
         .badge {
@@ -214,28 +246,11 @@
         .badge-new { background-color: var(--success-color); }
         .badge-update { background-color: var(--warning-color); }
 
-        .event-memo {
-            font-size: 0.85rem;
-            color: var(--sub-text);
-            white-space: pre-wrap;
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 6px;
-            line-height: 1.4;
-        }
-
-        .event-location {
-            font-size: 0.8rem;
-            color: var(--primary-hover);
-            margin-bottom: 4px;
-            font-weight: 600;
-        }
-
         .diff-container {
             display: flex;
             flex-direction: column;
             gap: 8px;
-            margin-top: 6px;
+            margin-top: 4px;
         }
 
         .diff-box {
@@ -261,6 +276,9 @@
         .diff-new {
             border-left: 3px solid var(--success-color);
             background: #f4fbf6;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
     </style>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -269,7 +287,8 @@
 <body>
 
     <div class="container">
-        <div class="version-badge">v1.9.5</div>
+        <!-- バージョンアップ v1.9.6 -->
+        <div class="version-badge">v1.9.6</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -428,7 +447,6 @@
             let rawParsedEvents = [];
             let currentEvent = null;
 
-            // v1.9.5 全角カッコ（日）等に対応した厳格日付正規表現
             const strictDateRegex = /^[^\d]*?(?:(\d{4})[年/-]\s*)?(\d{1,2})[月/.-]\s*(\d{1,2})日?(?:\s*[（\(][月火水木金土日祝・]+[）\)])?/;
 
             lines.forEach(line => {
@@ -456,8 +474,6 @@
                 }
 
                 const isHeader = trimmed.includes('【') && trimmed.includes('予定');
-                
-                // ガード条件: 学年・生徒数・人数の表記（「●4.5.6年生」等）は日付認識から完全排除
                 const isGradeOrQuantityLine = /[●・]?\s*[\d.]+\s*(?:年生|年|名|人)/.test(trimmed);
 
                 let dateMatch = null;
@@ -581,7 +597,6 @@
 
                 const hasExisting = Boolean(matchedEvent);
 
-                // 修正ポイント: 既存予定の有無に関わらず全件提案として作成する
                 let memoParts = [];
                 if (ev.timeRange) memoParts.push(`⏰ 実施時間: ${ev.timeRange.start}〜${ev.timeRange.end}`);
                 if (ev.meetingTime) memoParts.push(`🕒 集合時間: ${ev.meetingTime}`);
@@ -615,7 +630,7 @@
                 activeEvents.push({
                     date: ev.date,
                     title: finalTitle,
-                    timeRange: ev.timeRange || null,
+                    timeRange: ev.timeRange || { start: '', end: '' },
                     location: ev.location || '',
                     finalDescription: memoParts.join('\n\n'),
                     selected: true,
@@ -666,10 +681,19 @@
                 
                 activeEvents = items.map(ev => {
                     const dateStr = ev.start.date || (ev.start.dateTime ? ev.start.dateTime.split('T')[0] : '日付不明');
+                    let startTime = '';
+                    let endTime = '';
+
+                    if (ev.start.dateTime && ev.end.dateTime) {
+                        startTime = ev.start.dateTime.split('T')[1].substring(0, 5);
+                        endTime = ev.end.dateTime.split('T')[1].substring(0, 5);
+                    }
+
                     return {
                         id: ev.id,
                         title: ev.summary || '（タイトルなし）',
                         date: dateStr,
+                        timeRange: { start: startTime, end: endTime },
                         location: ev.location || '',
                         finalDescription: ev.description || '',
                         selected: false,
@@ -719,6 +743,9 @@
                 const badgeHtml = ev.type === '新規' ? '<span class="badge badge-new">新規</span>' : 
                                  ev.type === '更新' ? '<span class="badge badge-update">更新</span>' : '';
 
+                const startTimeVal = ev.timeRange ? (ev.timeRange.start || '') : '';
+                const endTimeVal = ev.timeRange ? (ev.timeRange.end || '') : '';
+
                 let cardContentHtml = '';
 
                 if (ev.type === '更新' && ev.oldData) {
@@ -731,16 +758,44 @@
                                 <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${escapeHtml(ev.oldData.description) || '（なし）'}</div>
                             </div>
                             <div class="diff-box diff-new">
-                                <div class="diff-box-title">【変更後（今回の解析結果）】</div>
-                                <div><b>場所:</b> ${escapeHtml(ev.location) || '（なし）'}</div>
-                                <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${escapeHtml(ev.finalDescription) || '（なし）'}</div>
+                                <div class="diff-box-title">【変更後（編集可能）】</div>
+                                <div>
+                                    <div class="field-label">時間</div>
+                                    <div class="time-input-group">
+                                        <input type="time" class="editable-field" value="${escapeHtml(startTimeVal)}" onchange="updateTimeRange(${idx}, 'start', this.value)">
+                                        〜
+                                        <input type="time" class="editable-field" value="${escapeHtml(endTimeVal)}" onchange="updateTimeRange(${idx}, 'end', this.value)">
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="field-label">場所</div>
+                                    <input type="text" class="editable-field" value="${escapeHtml(ev.location)}" placeholder="場所を入力" oninput="updateLocation(${idx}, this.value)">
+                                </div>
+                                <div>
+                                    <div class="field-label">メモ</div>
+                                    <textarea class="editable-field editable-textarea" placeholder="メモを入力" oninput="updateMemo(${idx}, this.value)">${escapeHtml(ev.finalDescription)}</textarea>
+                                </div>
                             </div>
                         </div>
                     `;
                 } else {
                     cardContentHtml = `
-                        ${ev.location ? `<div class="event-location">📍 ${escapeHtml(ev.location)}</div>` : ''}
-                        <div class="event-memo">${escapeHtml(ev.finalDescription) || 'メモなし'}</div>
+                        <div>
+                            <div class="field-label">時間</div>
+                            <div class="time-input-group">
+                                <input type="time" class="editable-field" value="${escapeHtml(startTimeVal)}" onchange="updateTimeRange(${idx}, 'start', this.value)">
+                                〜
+                                <input type="time" class="editable-field" value="${escapeHtml(endTimeVal)}" onchange="updateTimeRange(${idx}, 'end', this.value)">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="field-label">場所</div>
+                            <input type="text" class="editable-field" value="${escapeHtml(ev.location)}" placeholder="場所を入力" oninput="updateLocation(${idx}, this.value)">
+                        </div>
+                        <div>
+                            <div class="field-label">メモ</div>
+                            <textarea class="editable-field editable-textarea" placeholder="メモを入力" oninput="updateMemo(${idx}, this.value)">${escapeHtml(ev.finalDescription)}</textarea>
+                        </div>
                     `;
                 }
 
@@ -750,9 +805,9 @@
                     <input type="checkbox" class="event-checkbox" id="chk_${idx}" ${ev.selected ? 'checked' : ''} onchange="toggleSelect(${idx})">
                     <div class="event-content">
                         <div class="event-title-row">
-                            <input type="text" class="editable-title" id="title_${idx}" value="${escapeHtml(ev.title)}" oninput="updateTitle(${idx}, this.value)">
+                            <input type="text" class="editable-field editable-title" id="title_${idx}" value="${escapeHtml(ev.title)}" placeholder="件名を入力" oninput="updateTitle(${idx}, this.value)">
                             ${badgeHtml}
-                            <span>${escapeHtml(ev.date)}</span>
+                            <span style="font-size:0.85rem; font-weight:600; white-space:nowrap;">${escapeHtml(ev.date)}</span>
                         </div>
                         ${cardContentHtml}
                     </div>
@@ -767,8 +822,24 @@
             activeEvents[idx].selected = !activeEvents[idx].selected;
         }
 
-        function updateTitle(idx, newTitle) {
-            activeEvents[idx].title = newTitle;
+        /* 項目書き換えハンドラー */
+        function updateTitle(idx, value) {
+            activeEvents[idx].title = value;
+        }
+
+        function updateLocation(idx, value) {
+            activeEvents[idx].location = value;
+        }
+
+        function updateMemo(idx, value) {
+            activeEvents[idx].finalDescription = value;
+        }
+
+        function updateTimeRange(idx, key, value) {
+            if (!activeEvents[idx].timeRange) {
+                activeEvents[idx].timeRange = { start: '', end: '' };
+            }
+            activeEvents[idx].timeRange[key] = value;
         }
 
         function toggleSelectAll() {
@@ -791,14 +862,11 @@
                 for (const ev of targets) {
                     let eventResource = {
                         'summary': ev.title,
-                        'description': ev.finalDescription
+                        'description': ev.finalDescription,
+                        'location': ev.location || ''
                     };
 
-                    if (ev.location) {
-                        eventResource.location = ev.location;
-                    }
-
-                    if (ev.timeRange) {
+                    if (ev.timeRange && ev.timeRange.start && ev.timeRange.end) {
                         eventResource.start = { 'dateTime': `${ev.date}T${ev.timeRange.start}:00+09:00`, 'timeZone': 'Asia/Tokyo' };
                         eventResource.end = { 'dateTime': `${ev.date}T${ev.timeRange.end}:00+09:00`, 'timeZone': 'Asia/Tokyo' };
                     } else {
