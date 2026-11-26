@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://accounts.google.com https://apis.google.com https://content.googleapis.com; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://www.googleapis.com https://accounts.google.com https://oauth2.googleapis.com; img-src 'self' data: https:;">
     <title>Dodge-Scheduler</title>
     <!-- パスをルート直下に修正 -->
     <link rel="manifest" href="./manifest.json">
@@ -313,8 +314,8 @@
 <body>
 
     <div class="container">
-        <!-- バージョンアップ v1.9.9 -->
-        <div class="version-badge">v1.9.9</div>
+        <!-- バージョンアップ v1.10.0 -->
+        <div class="version-badge">v1.10.0</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -356,7 +357,7 @@
         }
 
         const CLIENT_ID = '771522706078-js00qiifo90o0l12i9b0i9uqghvanfea.apps.googleusercontent.com';
-        const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly';
+        const SCOPES = 'https://www.googleapis.com/auth/calendar.events';
 
         let tokenClient;
         let gapiInited = false;
@@ -375,9 +376,11 @@
                 .replace(/'/g, '&#39;');
         }
 
-        /**
-         * テキストエリアの高さを内容に合わせて全文表示できるよう調整する
-         */
+        function sanitizeTextInput(str, maxLength = 2000) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/\0/g, '').slice(0, maxLength);
+        }
+
         function autoResizeTextarea(el) {
             if (!el) return;
             el.style.height = 'auto';
@@ -390,9 +393,6 @@
             });
         }
 
-        /**
-         * ISO日時文字列（例: 2026-09-05T00:00:00Z）をローカル時間の「HH:MM」表記に正確に変換するヘルパー関数
-         */
         function extractLocalTimeString(dateTimeStr) {
             if (!dateTimeStr) return '';
             try {
@@ -441,7 +441,11 @@
 
         function handleAuthClick() {
             tokenClient.callback = async (resp) => {
-                if (resp.error !== undefined) throw (resp);
+                if (resp.error !== undefined) {
+                    console.error('認証エラー:', resp);
+                    document.getElementById('status').innerText = '認証に失敗しました。再度お試しください。';
+                    return;
+                }
                 
                 const targetCal = await getFamilyCalendarInfo();
                 document.getElementById('status').innerText = `認証成功！\n使用カレンダー: 「${targetCal.summary}」`;
@@ -461,7 +465,7 @@
         async function getFamilyCalendarInfo() {
             try {
                 const response = await gapi.client.calendar.calendarList.list();
-                const calendars = response.result.items;
+                const calendars = response.result.items || [];
                 
                 const familyCal = calendars.find(c => {
                     const sum = (c.summary || '').toLowerCase();
@@ -693,15 +697,16 @@
                     oldEndTime = extractLocalTimeString(matchedEvent.end.dateTime);
                 }
 
-                const existingTitle = hasExisting ? (matchedEvent.summary || '') : proposedTitle;
+                // 変更後（編集可能）の初期件名は現在登録内容（存在しない場合は提案件名）
+                const initialTitle = hasExisting ? (matchedEvent.summary || '') : proposedTitle;
 
                 activeEvents.push({
                     date: ev.date,
-                    title: existingTitle,
+                    title: initialTitle,
                     timeRange: ev.timeRange || { start: '', end: '' },
                     location: ev.location || '',
                     finalDescription: memoParts.join('\n\n'),
-                    selected: false, // 更新チェック欄はチェック無しを定位
+                    selected: false,
                     type: hasExisting ? '更新' : '新規',
                     existingEventId: hasExisting ? matchedEvent.id : null,
                     oldData: hasExisting ? {
@@ -777,24 +782,19 @@
                 renderPreview();
             } catch (err) {
                 console.error('全件取得エラー:', err);
-                alert('予定の取得に失敗しました: ' + err.message);
+                alert('予定の取得に失敗しました。通信状況や権限をご確認ください。');
             }
         }
 
-        /**
-         * 新旧データの差分を抽出し、変更点だけを太字強調（HTMLタグ）付きで取得する関数
-         */
         function getDiffSummaryHtml(ev) {
             if (!ev.oldData) return '';
 
             let changes = [];
 
-            // 件名の差分
             if ((ev.oldData.title || '').trim() !== (ev.title || '').trim()) {
                 changes.push(`<b>件名変更:</b> <span class="diff-highlight">${escapeHtml(ev.title || '（なし）')}</span>`);
             }
 
-            // 時間の差分
             const oldStart = ev.oldData.timeRange ? ev.oldData.timeRange.start : '';
             const oldEnd = ev.oldData.timeRange ? ev.oldData.timeRange.end : '';
             const newStart = ev.timeRange ? ev.timeRange.start : '';
@@ -805,12 +805,10 @@
                 changes.push(`<b>時間変更:</b> <span class="diff-highlight">${escapeHtml(timeText)}</span>`);
             }
 
-            // 場所の差分
             if ((ev.oldData.location || '').trim() !== (ev.location || '').trim()) {
                 changes.push(`<b>場所変更:</b> <span class="diff-highlight">${escapeHtml(ev.location || '（なし）')}</span>`);
             }
 
-            // メモ（説明）の差分抽出（行単位）
             const oldLines = (ev.oldData.description || '').split('\n').map(l => l.trim()).filter(l => l);
             const newLines = (ev.finalDescription || '').split('\n').map(l => l.trim()).filter(l => l);
 
@@ -889,6 +887,10 @@
                             <div class="diff-box diff-new">
                                 <div class="diff-box-title">【変更後（編集可能）】</div>
                                 <div>
+                                    <div class="field-label">件名</div>
+                                    <input type="text" class="editable-field editable-title" id="title_${idx}" value="${escapeHtml(ev.title)}" placeholder="件名を入力" oninput="updateTitle(${idx}, this.value)">
+                                </div>
+                                <div>
                                     <div class="field-label">時間</div>
                                     <div class="time-input-group">
                                         <input type="time" class="editable-field" value="${escapeHtml(startTimeVal)}" onchange="updateTimeRange(${idx}, 'start', this.value)">
@@ -909,6 +911,10 @@
                     `;
                 } else {
                     cardContentHtml = `
+                        <div>
+                            <div class="field-label">件名</div>
+                            <input type="text" class="editable-field editable-title" id="title_${idx}" value="${escapeHtml(ev.title)}" placeholder="件名を入力" oninput="updateTitle(${idx}, this.value)">
+                        </div>
                         <div>
                             <div class="field-label">時間</div>
                             <div class="time-input-group">
@@ -934,9 +940,10 @@
                     <input type="checkbox" class="event-checkbox" id="chk_${idx}" ${ev.selected ? 'checked' : ''} onchange="toggleSelect(${idx})">
                     <div class="event-content">
                         <div class="event-title-row">
-                            <input type="text" class="editable-field editable-title" id="title_${idx}" value="${escapeHtml(ev.title)}" placeholder="件名を入力" oninput="updateTitle(${idx}, this.value)">
-                            ${badgeHtml}
-                            <span style="font-size:0.85rem; font-weight:600; white-space:nowrap;">${escapeHtml(ev.date)}</span>
+                            <span style="font-size:0.9rem; font-weight:700;">${escapeHtml(ev.date)}</span>
+                            <div style="display:flex; align-items:center; gap:6px;">
+                                ${badgeHtml}
+                            </div>
                         </div>
                         ${cardContentHtml}
                     </div>
@@ -955,9 +962,6 @@
             }
         }
 
-        /**
-         * 変更後（編集可能）の項目が変更された際、更新チェック欄を自動でチェック状態にする
-         */
         function markAsCheckedOnEdit(idx) {
             if (!activeEvents[idx]) return;
             activeEvents[idx].selected = true;
@@ -972,19 +976,19 @@
         }
 
         function updateTitle(idx, value) {
-            activeEvents[idx].title = value;
+            activeEvents[idx].title = sanitizeTextInput(value, 200);
             markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
 
         function updateLocation(idx, value) {
-            activeEvents[idx].location = value;
+            activeEvents[idx].location = sanitizeTextInput(value, 300);
             markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
 
         function updateMemo(idx, value, textareaEl) {
-            activeEvents[idx].finalDescription = value;
+            activeEvents[idx].finalDescription = sanitizeTextInput(value, 8000);
             if (textareaEl) {
                 autoResizeTextarea(textareaEl);
             }
@@ -996,7 +1000,8 @@
             if (!activeEvents[idx].timeRange) {
                 activeEvents[idx].timeRange = { start: '', end: '' };
             }
-            activeEvents[idx].timeRange[key] = value;
+            const isValidTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+            activeEvents[idx].timeRange[key] = isValidTime ? value : '';
             markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
@@ -1007,11 +1012,32 @@
             renderPreview();
         }
 
+        function validateTimeRange(start, end) {
+            if (!start && !end) return { ok: true };
+            if (!start || !end) {
+                return { ok: false, message: '開始時刻と終了時刻の両方を指定してください。' };
+            }
+            if (start >= end) {
+                return { ok: false, message: `終了時刻（${end}）は開始時刻（${start}）より後に設定してください。` };
+            }
+            return { ok: true };
+        }
+
         async function syncToGoogleCalendar() {
             const targets = activeEvents.filter(ev => ev.selected);
             if (targets.length === 0) {
                 alert('適用する予定が選択されていません。');
                 return;
+            }
+
+            for (const ev of targets) {
+                const start = ev.timeRange ? ev.timeRange.start : '';
+                const end = ev.timeRange ? ev.timeRange.end : '';
+                const check = validateTimeRange(start, end);
+                if (!check.ok) {
+                    alert(`${ev.date} の予定エラー: ${check.message}`);
+                    return;
+                }
             }
 
             document.getElementById('status').innerText = 'ファミリーカレンダーに適用中...';
@@ -1020,9 +1046,9 @@
             try {
                 for (const ev of targets) {
                     let eventResource = {
-                        'summary': ev.title,
-                        'description': ev.finalDescription,
-                        'location': ev.location || ''
+                        'summary': sanitizeTextInput(ev.title, 200) || 'ドッジ予定',
+                        'description': sanitizeTextInput(ev.finalDescription, 8000),
+                        'location': sanitizeTextInput(ev.location || '', 300)
                     };
 
                     if (ev.timeRange && ev.timeRange.start && ev.timeRange.end) {
@@ -1051,7 +1077,7 @@
                 document.getElementById('previewSection').style.display = 'none';
             } catch (err) {
                 console.error('反映エラー:', err);
-                alert('予定の反映に失敗しました: ' + err.message);
+                alert('予定の反映に失敗しました。通信状況やカレンダー権限をご確認ください。');
             }
         }
 
@@ -1080,7 +1106,7 @@
                 fetchDodgeballEvents();
             } catch (err) {
                 console.error('削除エラー:', err);
-                alert('予定の削除に失敗しました: ' + err.message);
+                alert('予定の削除に失敗しました。通信状況やカレンダー権限をご確認ください。');
             }
         }
     </script>
