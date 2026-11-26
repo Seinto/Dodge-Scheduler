@@ -211,9 +211,11 @@
         }
 
         .editable-textarea {
-            height: 70px;
+            min-height: 120px;
+            height: auto;
+            overflow-y: hidden;
             resize: vertical;
-            line-height: 1.4;
+            line-height: 1.5;
         }
 
         .time-input-group {
@@ -311,8 +313,8 @@
 <body>
 
     <div class="container">
-        <!-- バージョンアップ v1.9.8 -->
-        <div class="version-badge">v1.9.8</div>
+        <!-- バージョンアップ v1.9.9 -->
+        <div class="version-badge">v1.9.9</div>
 
         <h1>🏐 Dodge-Scheduler</h1>
         <div id="status" class="status-box">Google認証を初期化中...</div>
@@ -326,7 +328,7 @@
         <textarea id="inputText" placeholder="※ここに連絡テキストを貼り付けてください"></textarea>
         <button id="parse-btn" class="btn-primary" onclick="parseAndPropose()" disabled>テキスト解析・更新提案を作成</button>
 
-        <button id="fetch-btn" class="btn-secondary" onclick="fetchDodgeballEvents()" disabled>カレンダーの全ドッチ予定を取得（全解除で表示）</button>
+        <button id="fetch-btn" class="btn-secondary" onclick="fetchDodgeballEvents()" disabled>カレンダーの全ドッジ予定を取得（全解除で表示）</button>
 
         <div id="previewSection" style="margin-top: 20px; display: none;">
             <div class="preview-header">
@@ -371,6 +373,21 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
+        }
+
+        /**
+         * テキストエリアの高さを内容に合わせて全文表示できるよう調整する
+         */
+        function autoResizeTextarea(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = Math.max(el.scrollHeight, 120) + 'px';
+        }
+
+        function adjustAllMemoHeights() {
+            document.querySelectorAll('.editable-textarea').forEach(el => {
+                autoResizeTextarea(el);
+            });
         }
 
         /**
@@ -561,7 +578,8 @@
                     if (trimmed.includes('※')) currentEvent.hasAsterisk = true;
 
                     let processedLine = trimmed
-                        .replace(/ドッチボール/g, 'ドッチ')
+                        .replace(/ドッチボール/g, 'ドッジ')
+                        .replace(/ドッチ/g, 'ドッジ')
                         .replace(/小学校/g, '小');
 
                     currentEvent.blockText += ' ' + processedLine;
@@ -579,8 +597,8 @@
                             if (matchTournament) {
                                 let foundTitle = matchTournament[1].replace(/[「」]/g, '');
                                 if (foundTitle.length < 20) {
-                                    if (!foundTitle.includes('ドッチ')) {
-                                        currentEvent.customEventTitle = `ドッチ ${foundTitle}`;
+                                    if (!foundTitle.includes('ドッジ')) {
+                                        currentEvent.customEventTitle = `ドッジ ${foundTitle}`;
                                     } else {
                                         currentEvent.customEventTitle = foundTitle;
                                     }
@@ -633,7 +651,7 @@
                 const matchedEvent = existingEvents.find(e => {
                     const title = e.summary || '';
                     const desc = e.description || '';
-                    return title.includes('ドッチ') || title.includes('練習') || desc.includes('ドッチ');
+                    return title.includes('ドッジ') || title.includes('ドッチ') || title.includes('練習') || desc.includes('ドッジ') || desc.includes('ドッチ');
                 });
 
                 const hasExisting = Boolean(matchedEvent);
@@ -659,30 +677,31 @@
                 const isSpecifiedSchool = specifiedSchools.some(school => ev.blockText.includes(school));
 
                 if (hasTournamentOrPracticeGame) {
-                    baseTitle = ev.customEventTitle || 'ドッチ 練習試合';
+                    baseTitle = ev.customEventTitle || 'ドッジ 練習試合';
                 } else if (!isSpecifiedSchool) {
-                    baseTitle = 'ドッチ試合';
+                    baseTitle = 'ドッジ試合';
                 } else {
-                    baseTitle = 'ドッチ 練習';
+                    baseTitle = 'ドッジ 練習';
                 }
 
-                let finalTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
+                let proposedTitle = ev.hasKeyDuty ? `${baseTitle}・鍵当番` : baseTitle;
 
                 let oldStartTime = '';
                 let oldEndTime = '';
                 if (matchedEvent && matchedEvent.start && matchedEvent.start.dateTime) {
-                    // Dateオブジェクトを使用してローカル時刻をパース（9時間ズレを解消）
                     oldStartTime = extractLocalTimeString(matchedEvent.start.dateTime);
                     oldEndTime = extractLocalTimeString(matchedEvent.end.dateTime);
                 }
 
+                const existingTitle = hasExisting ? (matchedEvent.summary || '') : proposedTitle;
+
                 activeEvents.push({
                     date: ev.date,
-                    title: finalTitle,
+                    title: existingTitle,
                     timeRange: ev.timeRange || { start: '', end: '' },
                     location: ev.location || '',
                     finalDescription: memoParts.join('\n\n'),
-                    selected: true,
+                    selected: false, // 更新チェック欄はチェック無しを定位
                     type: hasExisting ? '更新' : '新規',
                     existingEventId: hasExisting ? matchedEvent.id : null,
                     oldData: hasExisting ? {
@@ -697,7 +716,7 @@
             activeEvents.sort((a, b) => a.date.localeCompare(b.date));
 
             document.getElementById('status').innerText = `照合完了：${activeEvents.length}件の提案を作成しました（カレンダー: ${calInfo.summary}）`;
-            allSelected = true;
+            allSelected = false;
             renderPreview();
         }
 
@@ -707,7 +726,7 @@
                 return;
             }
 
-            document.getElementById('status').innerText = 'ファミリーカレンダーからドッチ関連の予定を取得中...';
+            document.getElementById('status').innerText = 'ファミリーカレンダーからドッジ関連の予定を取得中...';
             const calInfo = await getFamilyCalendarInfo();
 
             const today = new Date();
@@ -720,7 +739,7 @@
             try {
                 const res = await gapi.client.calendar.events.list({
                     'calendarId': calInfo.id,
-                    'q': 'ドッチ',
+                    'q': 'ドッジ',
                     'timeMin': timeMinIso,
                     'singleEvents': true,
                     'orderBy': 'startTime'
@@ -735,7 +754,6 @@
                     let endTime = '';
 
                     if (ev.start.dateTime && ev.end.dateTime) {
-                        // Dateオブジェクトを使用してローカル時刻をパース（9時間ズレを解消）
                         startTime = extractLocalTimeString(ev.start.dateTime);
                         endTime = extractLocalTimeString(ev.end.dateTime);
                     }
@@ -754,7 +772,7 @@
 
                 activeEvents.sort((a, b) => a.date.localeCompare(b.date));
 
-                document.getElementById('status').innerText = `取得完了：本日以降 ${activeEvents.length}件のドッチ関連予定が見つかりました（カレンダー: ${calInfo.summary}）`;
+                document.getElementById('status').innerText = `取得完了：本日以降 ${activeEvents.length}件のドッジ関連予定が見つかりました（カレンダー: ${calInfo.summary}）`;
                 allSelected = false;
                 renderPreview();
             } catch (err) {
@@ -804,12 +822,12 @@
             }
 
             if (changes.length === 0) {
-                return '<div class="diff-changes"><div class="diff-changes-title">🔍 照合結果</div><div>変更箇所はありません（既登録内容と同一）</div></div>';
+                return '<div class="diff-changes"><div class="diff-changes-title">照合結果</div><div>変更箇所はありません（既登録内容と同一）</div></div>';
             }
 
             return `
                 <div class="diff-changes">
-                    <div class="diff-changes-title">⚡ 抽出された変更箇所（差分）</div>
+                    <div class="diff-changes-title">照合結果（抽出された変更箇所）</div>
                     ${changes.map(c => `<div>${c}</div>`).join('')}
                 </div>
             `;
@@ -829,7 +847,7 @@
                 syncBtn.style.display = 'block';
                 deleteBtn.style.display = 'none';
             } else {
-                titleElem.innerText = '登録済みドッチ予定一覧（本日以降・時系列順）';
+                titleElem.innerText = '登録済みドッジ予定一覧（本日以降・時系列順）';
                 syncBtn.style.display = 'none';
                 deleteBtn.style.display = 'block';
             }
@@ -856,16 +874,16 @@
 
                     cardContentHtml = `
                         <div class="diff-container">
+                            <div id="diff_summary_${idx}">
+                                ${diffHtml}
+                            </div>
+
                             <div class="diff-box diff-old">
                                 <div class="diff-box-title">【変更前（カレンダー登録中）】</div>
                                 <div><b>件名:</b> ${escapeHtml(ev.oldData.title)}</div>
                                 <div><b>時間:</b> ${escapeHtml(ev.oldData.timeRange.start ? `${ev.oldData.timeRange.start}〜${ev.oldData.timeRange.end}` : '終日')}</div>
                                 <div><b>場所:</b> ${escapeHtml(ev.oldData.location) || '（なし）'}</div>
                                 <div style="white-space: pre-wrap; margin-top: 4px;"><b>メモ:</b>\n${escapeHtml(ev.oldData.description) || '（なし）'}</div>
-                            </div>
-                            
-                            <div id="diff_summary_${idx}">
-                                ${diffHtml}
                             </div>
 
                             <div class="diff-box diff-new">
@@ -884,7 +902,7 @@
                                 </div>
                                 <div>
                                     <div class="field-label">メモ</div>
-                                    <textarea class="editable-field editable-textarea" placeholder="メモを入力" oninput="updateMemo(${idx}, this.value)">${escapeHtml(ev.finalDescription)}</textarea>
+                                    <textarea class="editable-field editable-textarea" placeholder="メモを入力" oninput="updateMemo(${idx}, this.value, this)">${escapeHtml(ev.finalDescription)}</textarea>
                                 </div>
                             </div>
                         </div>
@@ -905,7 +923,7 @@
                         </div>
                         <div>
                             <div class="field-label">メモ</div>
-                            <textarea class="editable-field editable-textarea" placeholder="メモを入力" oninput="updateMemo(${idx}, this.value)">${escapeHtml(ev.finalDescription)}</textarea>
+                            <textarea class="editable-field editable-textarea" placeholder="メモを入力" oninput="updateMemo(${idx}, this.value, this)">${escapeHtml(ev.finalDescription)}</textarea>
                         </div>
                     `;
                 }
@@ -927,6 +945,7 @@
             });
 
             section.style.display = 'block';
+            adjustAllMemoHeights();
         }
 
         function refreshDiffView(idx) {
@@ -936,22 +955,40 @@
             }
         }
 
+        /**
+         * 変更後（編集可能）の項目が変更された際、更新チェック欄を自動でチェック状態にする
+         */
+        function markAsCheckedOnEdit(idx) {
+            if (!activeEvents[idx]) return;
+            activeEvents[idx].selected = true;
+            const chkEl = document.getElementById(`chk_${idx}`);
+            if (chkEl) {
+                chkEl.checked = true;
+            }
+        }
+
         function toggleSelect(idx) {
             activeEvents[idx].selected = !activeEvents[idx].selected;
         }
 
         function updateTitle(idx, value) {
             activeEvents[idx].title = value;
+            markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
 
         function updateLocation(idx, value) {
             activeEvents[idx].location = value;
+            markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
 
-        function updateMemo(idx, value) {
+        function updateMemo(idx, value, textareaEl) {
             activeEvents[idx].finalDescription = value;
+            if (textareaEl) {
+                autoResizeTextarea(textareaEl);
+            }
+            markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
 
@@ -960,6 +997,7 @@
                 activeEvents[idx].timeRange = { start: '', end: '' };
             }
             activeEvents[idx].timeRange[key] = value;
+            markAsCheckedOnEdit(idx);
             refreshDiffView(idx);
         }
 
